@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.0.2');
+use version; $VERSION = qv('0.0.3');
 
 use warnings;
 use strict;
@@ -387,7 +387,6 @@ sub _doesnt_match {
 # Assign default values to missing components in %ARGV...
 
 sub _rectify_args {
-    use Smart::Comments;
     for my $arg (values %ARGV) {
         if (ref $arg eq 'HASH') {
             for my $var (values %{$arg}) {
@@ -593,7 +592,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.0.2
+This document describes Getopt::Euclid version 0.0.3
 
 
 =head1 SYNOPSIS

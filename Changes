@@ -7,3 +7,8 @@ Revision history for Getopt-Euclid
 
 0.0.2  Sat Jul 23 04:37:18 2005
        No changes logged
+
+
+0.0.3  Sun Jul 24 20:16:17 2005
+
+    - Removed need for Smart::Comments
