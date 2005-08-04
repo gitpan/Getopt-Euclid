@@ -13,6 +13,7 @@ BEGIN {
         "size ${H}x${W}",
         '-v',
         "--timeout $TIMEOUT",
+        '-w', 's p a c e s',
     );
 }
 
@@ -24,7 +25,7 @@ sub got_arg {
     is $ARGV{$key}, $val, "Got expected value for $key";
 }
 
-is keys %ARGV, 15 => 'Right number of args returned';
+is keys %ARGV, 16 => 'Right number of args returned';
 
 got_arg -i       => $INFILE;
 got_arg -infile  => $INFILE;
@@ -51,6 +52,8 @@ is $ARGV{'--timeout'}{max}, -1        => 'Got default value for timeout <max>';
 is ref $ARGV{size}, 'HASH'      => 'Hash reference returned for size';
 is $ARGV{size}{h}, $H           => 'Got expected value for size <h>';
 is $ARGV{size}{w}, $W           => 'Got expected value for size <w>';
+
+is $ARGV{-w}, 's p a c e s'      => 'Handled spaces correctly';
 
 __END__
 
@@ -121,6 +124,10 @@ Print all warnings
     min.type: int
     max.type: int
     max.default: -1
+
+=item -w <space>
+
+Test something spaced
 
 =item --version
 

@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.0.3');
+use version; $VERSION = qv('0.0.4');
 
 use warnings;
 use strict;
@@ -237,7 +237,7 @@ sub import {
     my $arg_summary = join ' ',
                         sort { $requireds{$a}{seq} <=> $requireds{$b}{seq} }
                              keys %requireds;
-    1 while $arg_summary =~ s/\[ [^]]* \]//gxms;
+    1 while $arg_summary =~ s/\[ [^][]* \]//gxms;
     $arg_summary .= lc " [$opt_name]" if $opt_name;
     $arg_summary =~ s/\s+/ /gxms;
 
@@ -305,7 +305,7 @@ sub import {
     # Run matcher...
     my $all_args_ref = { %options, %requireds };
 
-    my $argv = join(q{ }, map {my $arg=$_; $arg=~tr/ \t/\0\2/; $arg} @ARGV);
+    my $argv = join(q{ }, map {my $arg=$_; $arg=~tr/ \t/\0\1/; $arg} @ARGV);
     if (my $error = _doesnt_match($matcher, $argv, $all_args_ref)) {
         _bad_arglist($error);
     }
@@ -592,7 +592,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.0.3
+This document describes Getopt::Euclid version 0.0.4
 
 
 =head1 SYNOPSIS
