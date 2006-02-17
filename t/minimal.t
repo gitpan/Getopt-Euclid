@@ -18,7 +18,7 @@ BEGIN {
     );
 }
 
-use Getopt::Euclid;
+use Getopt::Euclid qw( :minimal_keys );
 use Test::More 'no_plan';
 
 sub got_arg {
@@ -28,35 +28,35 @@ sub got_arg {
 
 is keys %ARGV, 17 => 'Right number of args returned';
 
-got_arg -i       => $INFILE;
-got_arg -infile  => $INFILE;
+got_arg 'i'       => $INFILE;
+got_arg 'infile'  => $INFILE;
 
-got_arg -l       => $LEN;
-got_arg -len     => $LEN;
-got_arg -length  => $LEN;
-got_arg -lgth    => $LEN;
+got_arg 'l'       => $LEN;
+got_arg 'len'     => $LEN;
+got_arg 'length'  => $LEN;
+got_arg 'lgth'    => $LEN;
 
-got_arg -girth   => 42;
+got_arg 'girth'   => 42;
 
-got_arg -o       => $OUTFILE;
-got_arg -ofile   => $OUTFILE;
-got_arg -out     => $OUTFILE;
-got_arg -outfile => $OUTFILE;
+got_arg 'o'       => $OUTFILE;
+got_arg 'ofile'   => $OUTFILE;
+got_arg 'out'     => $OUTFILE;
+got_arg 'outfile' => $OUTFILE;
 
-got_arg -v       => 1,
-got_arg -verbose => 1,
+got_arg 'v'       => 1,
+got_arg 'verbose' => 1,
 
-is ref $ARGV{'--timeout'}, 'HASH'     => 'Hash reference returned for timeout';
-is $ARGV{'--timeout'}{min}, $TIMEOUT  => 'Got expected value for timeout <min>';
-is $ARGV{'--timeout'}{max}, -1        => 'Got default value for timeout <max>';
+is ref $ARGV{'timeout'}, 'HASH'     => 'Hash reference returned for timeout';
+is $ARGV{'timeout'}{min}, $TIMEOUT  => 'Got expected value for timeout <min>';
+is $ARGV{'timeout'}{max}, -1        => 'Got default value for timeout <max>';
 
 is ref $ARGV{size}, 'HASH'      => 'Hash reference returned for size';
 is $ARGV{size}{h}, $H           => 'Got expected value for size <h>';
 is $ARGV{size}{w}, $W           => 'Got expected value for size <w>';
 
-is $ARGV{-w}, 's p a c e s'      => 'Handled spaces correctly';
+is $ARGV{w}, 's p a c e s'      => 'Handled spaces correctly';
 
-is $ARGV{'<step>'}, 7      => 'Handled step size correctly';
+is $ARGV{step}, 7      => 'Handled step size correctly';
 
 __END__
 

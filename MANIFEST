@@ -28,3 +28,6 @@ t/quoted_args.t
 t/repeated.t
 t/simple.t
 t/simple_shuffle.t
+t/fail_minimal_clash.t
+t/fail_unknown_mode.t
+t/minimal.t

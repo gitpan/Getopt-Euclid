@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.0.4');
+use version; $VERSION = qv('0.0.5');
 
 use warnings;
 use strict;
@@ -34,11 +34,15 @@ my @std_POD;
 END { $has_run = 1 }
 
 sub Getopt::Euclid::Importer::DESTROY {
-    return if $has_run;
+    return if $has_run || $^C;  # No errors when only compiling
     croak '.pm file cannot define an explicit import() when using Getopt::Euclid';
 }
 
 sub import {
+    shift @_;
+    my $minimal_keys
+        = grep { /:minimal_keys/ || croak "Unknown mode ('$_')" } @_;
+
     if ($has_run) {
         carp "Getopt::Euclid loaded a second time";
         warn "Second attempt to parse command-line was ignored\n";
@@ -131,7 +135,7 @@ sub import {
 
         my ($more_licence)
             = $std_POD =~ m/^=head1 [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $EOHEAD /xms;
-        $licence = ($more_licence||q{}) . ($licence|q{});
+        $licence = ($more_licence||q{}) . ($licence||q{});
     }
 
     # Clean up interface titles...
@@ -344,9 +348,39 @@ sub import {
             $ARGV{$arg_flag} = $val;
         }
     }
+
+    if ($minimal_keys) {
+        _minimize(\%ARGV);
+    }
 }
 
 # ###### Utility subs #############
+
+# Recursively remove decorations on %ARGV keys
+
+sub _minimize {
+    my ($arg_ref) = @_;
+    return if ref $arg_ref ne 'HASH';
+
+    my %seen;
+    for my $old_key (keys %{$arg_ref}) {
+        my $new_key = $old_key;
+        $new_key =~ s{\A -+ | \A < | > \z }{}gxms;
+        $new_key =~ s{-}{_}gxms;
+        if ($seen{$new_key}) {
+            croak "Internal error: minimalist mode caused arguments '",
+                  $old_key,
+                  "' and '",
+                  $seen{$new_key},
+                  "' to clash";
+        }
+        $arg_ref->{$new_key} = delete $arg_ref->{$old_key};
+        $seen{$new_key} = $old_key;
+        _minimize($arg_ref->{$new_key});
+    }
+
+    return;
+}
 
 
 # Do match, recursively trying to expand cuddles...
@@ -536,7 +570,7 @@ sub _convert_to_regex {
 sub _print_and_exit {
     my ($pod, $paged) = @_;
 
-    if (-t *STDOUT and eval { require POD::Text }) {
+    if (-t *STDOUT and eval { require Pod::Text }) {
         if ($paged) {
             eval { require IO::Page } or eval { require IO::Pager::Page };
         }
@@ -592,7 +626,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.0.4
+This document describes Getopt::Euclid version 0.0.5
 
 
 =head1 SYNOPSIS
@@ -763,7 +797,7 @@ You write:
 and your module will then become just like Getopt::Euclid, except that your
 module's POD will be prepended to the POD of any module that loads yours.
 
-There are no options to pass.
+You don't need to pass any options.
 
 Getopt::Euclid installs an C<import()> subroutine in your module. If
 your module already has an C<import()> subroutine defined, terrible
@@ -1234,6 +1268,41 @@ POD section) and then exit.
 
 =back
 
+=head2 Minimalist keys
+
+By default, the keys of C<%ARGV> will match the program's interface
+exactly. That is, if your program accepts the following arguments:
+
+    -v
+    --mode <modename>
+    <infile>
+    <outfile>
+
+Then the keys that appear in C<%ARGV> will be:
+
+    '-v
+    '--mode'
+    '<infile>'
+    '<outfile>'
+
+In some cases, however, it may be preferable to have Getopt::Euclid set
+up those hash keys without "decorations". That is, to have the keys of
+C<%ARGV> be simply:
+
+    'v
+    'mode'
+    'infile'
+    'outfile'
+
+You can arrange this by loading the module with the special C<':minimal_keys'>
+specifier:
+
+    use Getopt::Euclid qw( :minimal_keys );
+
+Note that, in rare cases, using this mode may cause you to lose
+data (for example, if the interface specifies both a C<--step> and
+a C<< <step> >> option). The module throws an exception if this happens.
+
 
 =head1 DIAGNOSTICS
 
@@ -1313,6 +1382,23 @@ instead of:
 
 You tried to load the module twice in the same program.
 Getopt::Euclid doesn't work that way. Load it only once.
+
+=item Unknown mode ('%s')
+
+The only argument that a C<use Getopt::Euclid> command accepts is
+C<':minimal_keys'> (see L<Minimalist keys>). You specified something
+else instead (or possibly forgot to put a semicolon after C<use
+Getopt::Euclid>).
+
+=item Internal error: minimalist mode caused arguments '%s' and '%s' to clash
+
+Minimalist mode removes certain characters from the keys hat are
+returned in C<%ARGV>. This can mean that two command-line options (such
+as C<--step> and C<< <step> >>) map to the same key (i.e. C<'step'>).
+This in turn means that one of the two options has overwritten the other
+within the C<%ARGV> hash. The program developer should either turn off
+C<':minimal_keys'> mode within the program, or else change the name of
+one of the options so that the two no longer clash.
 
 =back
 
