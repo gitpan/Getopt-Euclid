@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.0.5');
+use version; $VERSION = qv('0.0.7');
 
 use warnings;
 use strict;
@@ -40,8 +40,11 @@ sub Getopt::Euclid::Importer::DESTROY {
 
 sub import {
     shift @_;
-    my $minimal_keys
-        = grep { /:minimal_keys/ || croak "Unknown mode ('$_')" } @_;
+    my $minimal_keys;
+    my $vars_prefix;
+    @_ = grep { ! (/:minimal_keys/      and $minimal_keys = 1            ) } @_;
+    @_ = grep { ! (/:vars(?:<(\w+)>)?/  and $vars_prefix = $1 || "ARGV_" ) } @_;
+    croak "Unknown mode ('$_')" for @_;
 
     if ($has_run) {
         carp "Getopt::Euclid loaded a second time";
@@ -152,13 +155,40 @@ sub import {
     # Convert each arg entry to a hash...
     my (%requireds, %options);
     my $seq_num = 0;
+    my %seen;
     while (@requireds) {
         my ($name, $spec) = splice @requireds, 0, 2;
-        $requireds{$name} = { seq => $seq_num++, src => $spec, name => $name };
+        my @variants = _get_variants($name);
+        $requireds{$name} = {
+            seq      => $seq_num++,
+            src      => $spec,
+            name     => $name,
+            variants => \@variants,
+        };
+        if ($minimal_keys) {
+            my $minimal = _minimize_name($name);
+            croak "Internal error: minimalist mode caused arguments",
+                  "'$name' and '$seen{$minimal}' to clash"
+                    if $seen{$minimal};
+            $seen{$minimal} = $name;
+        }
     }
     while (@options) {
         my ($name, $spec) = splice @options, 0, 2;
-        $options{$name} = { seq => $seq_num++, src => $spec, name => $name };
+        my @variants = _get_variants($name);
+        $options{$name} = {
+            seq      => $seq_num++,
+            src      => $spec,
+            name     => $name,
+            variants => \@variants,
+        };
+        if ($minimal_keys) {
+            my $minimal = _minimize_name($name);
+            croak "Internal error: minimalist mode caused arguments",
+                  "'$name' and '$seen{$minimal}' to clash"
+                    if $seen{$minimal};
+            $seen{$minimal} = $name;
+        }
     }
 
     my %STD_CONSTRAINT_FOR;
@@ -197,9 +227,30 @@ sub import {
         $arg->{src} =~ s{^ =for \s+ Euclid\b [^\n]* \s* (.*) \z}{}ixms
             or next ARG;
         my $info = $1;
-        while ($info =~ m{\G \s* (([^.]+)\.([^.\s]+) \s*[:=]\s* ([^\n]*)) }gcxms) {
+
+        $arg->{is_repeatable} = $info =~ s{^ \s* repeatable \s*? $}{}xms;
+
+        my @false_vals;
+        while ($info =~ s{^ \s* false \s*[:=] \s* ([^\n]*)}{}xms) {
+            push @false_vals, quotemeta $1;
+        }
+        if (@false_vals) {
+            $arg->{false_vals} = '(?:' . join('|', @false_vals) .')';
+        }
+
+        while ($info =~ m{\G \s* (([^.]+)\.([^:=\s]+) \s*[:=]\s* ([^\n]*)) }gcxms) {
             my ($spec, $var, $field, $val) = ($1, $2, $3, $4);
-            if ($field eq 'type') {
+
+            # Check for misplaced fields...
+            if ($arg->{name} !~ m{\Q<$var>}xms) {
+                _fail("Invalid constraint: $spec\n(No <$var> placeholder in argument: $arg->{name})");
+            }
+
+            # Decode...
+            if ($field eq 'type.error') {
+                $arg->{var}{$var}{type_error} = $val;
+            }
+            elsif ($field eq 'type') {
                 my ($matchtype, $comma, $constraint)
                     = $val =~ m/([^,\s]+)\s*(?:(,))?\s*(.*)/xms;
                 $arg->{var}{$var}{type} = $matchtype;
@@ -297,13 +348,13 @@ sub import {
     $matcher = '(?:'.$matcher.')';
 
     # Report problems in parsing...
-
     *_bad_arglist = sub {
         my (@msg) = @_;
         my $msg = join q{}, @msg;
         $msg =~ tr/\0\1/ \t/;
         $msg =~ s/\n?\z/\n/xms;
-        die "$msg(Try: $prog_name --help)\n\n";
+        warn "$msg(Try: $prog_name --help)\n\n";
+        exit;
     };
 
     # Run matcher...
@@ -313,7 +364,6 @@ sub import {
     if (my $error = _doesnt_match($matcher, $argv, $all_args_ref)) {
         _bad_arglist($error);
     }
-
 
     # Check all requireds have been found...
 
@@ -338,19 +388,56 @@ sub import {
     # Clean up %ARGV...
 
     for my $arg_name (keys %ARGV) {
-        my $val = delete $ARGV{$arg_name};
-        my $var_count = keys %{$val};
-        $val = $var_count == 0 ? 1                    # Boolean -> true
-             : $var_count == 1 ? (values %{$val})[0]  # Single var -> var's val
-             :                   $val                 # Otherwise keep hash 
-             ;
-        for my $arg_flag ( _get_variants($arg_name) ) {
-            $ARGV{$arg_flag} = $val;
+        # Flatten non-repeatables...
+
+        my $vals = delete $ARGV{$arg_name};
+
+        my $repeatable = $all_args_ref->{$arg_name}{is_repeatable};
+
+        if ($repeatable) {
+            pop @{$vals};
+        }
+
+        for my $val ( @{$vals} ) {
+            my $var_count = keys %{$val};
+            $val = $var_count == 0 ? 1                    # Boolean -> true
+                 : $var_count == 1 ? (values %{$val})[0]  # Single var -> var's val
+                 :                   $val                 # Otherwise keep hash 
+                 ;
+            my $false_vals = $all_args_ref->{$arg_name}{false_vals};
+            my @variants = _get_variants($arg_name);
+            my %vars_opt_vals;
+            for my $arg_flag ( @variants ) {
+                my $variant_val = $val;
+                if ($false_vals && $arg_flag =~ m{\A $false_vals \z}xms) {
+                    $variant_val = $variant_val ? 0 : 1;
+                }
+
+                if ($repeatable) {
+                    push @{$ARGV{$arg_flag}}, $variant_val;
+                }
+                else {
+                    $ARGV{$arg_flag} = $variant_val;
+                }
+                $vars_opt_vals{$arg_flag} = $ARGV{$arg_flag} if $vars_prefix
+            }
+
+            if ($vars_prefix) {
+                _minimize_entries_of( \%vars_opt_vals );
+                my $maximal = (sort { length $a <=> length $b || $a cmp $b } keys %vars_opt_vals)[-1];
+                my $export_as = $vars_prefix . $maximal;
+                $export_as =~ s{\W}{_}gxms; # for '-'
+                my $callpkg = caller($Exporter::ExportLevel || 0);
+                no strict 'refs';
+                *{"$callpkg\::$export_as"}
+                    = (ref $vars_opt_vals{$maximal}) ? $vars_opt_vals{$maximal}
+                    :                                 \$vars_opt_vals{$maximal};
+            }
         }
     }
 
     if ($minimal_keys) {
-        _minimize(\%ARGV);
+        _minimize_entries_of(\%ARGV);
     }
 }
 
@@ -358,25 +445,21 @@ sub import {
 
 # Recursively remove decorations on %ARGV keys
 
-sub _minimize {
+sub _minimize_name {
+    my ($name) = @_;
+    $name =~ s{[][]}{}gxms;   # remove all square brackets
+    $name =~ s{\A \W+ ([\w-]*) .* \z}{$1}gxms;
+    $name =~ s{-}{_}gxms;
+    return $name;
+}
+
+sub _minimize_entries_of {
     my ($arg_ref) = @_;
     return if ref $arg_ref ne 'HASH';
 
-    my %seen;
     for my $old_key (keys %{$arg_ref}) {
-        my $new_key = $old_key;
-        $new_key =~ s{\A -+ | \A < | > \z }{}gxms;
-        $new_key =~ s{-}{_}gxms;
-        if ($seen{$new_key}) {
-            croak "Internal error: minimalist mode caused arguments '",
-                  $old_key,
-                  "' and '",
-                  $seen{$new_key},
-                  "' to clash";
-        }
+        my $new_key = _minimize_name($old_key);
         $arg_ref->{$new_key} = delete $arg_ref->{$old_key};
-        $seen{$new_key} = $old_key;
-        _minimize($arg_ref->{$new_key});
     }
 
     return;
@@ -409,35 +492,47 @@ sub _doesnt_match {
                 if $error !~ m/\A [\s\0\1]* ($arg_spec_ref->{generic_matcher})/xms
                 || !$bad_type;
             
-            return qq{Invalid "$bad_type->{arg}" argument\n}
-                 . qq{$bad_type->{var} must be $bad_type->{type}}
-                 . qq{ but the supplied value ("$bad_type->{val}") isn't.}
+            my $msg;
+            if ($msg = $bad_type->{type_error}) {
+                use Smart::Comments;
+                ### $msg
+                my $var = $bad_type->{var};
+                $var =~ s{\W+}{}gxms;
+                $msg =~ s{(?<!<)\b$var\b|\b$var\b(?!>)}{$bad_type->{val}}gxms;
+            }
+            else {
+                $msg = qq{$bad_type->{var} must be $bad_type->{type}}
+                     . qq{ but the supplied value ("$bad_type->{val}") isn't.};
+            }
+            return qq{Invalid "$bad_type->{arg}" argument\n$msg};
         }
         return "Unknown argument: $error";
     }
 
     return;  # No error
 }
-# Assign default values to missing components in %ARGV...
+
 
 sub _rectify_args {
-    for my $arg (values %ARGV) {
-        if (ref $arg eq 'HASH') {
-            for my $var (values %{$arg}) {
-                if (ref $var eq 'ARRAY') { 
-                    tr/\0\1/ \t/ for @{$var};
+    for my $arg_list (values %ARGV) {
+        for my $arg (@{$arg_list}) {
+            if (ref $arg eq 'HASH') {
+                for my $var (values %{$arg}) {
+                    if (ref $var eq 'ARRAY') { 
+                        tr/\0\1/ \t/ for @{$var};
+                    }
+                    else {
+                        tr/\0\1/ \t/ for $var;
+                    }
                 }
-                else {
-                    tr/\0\1/ \t/ for $var;
-                }
-            }
-        }
-        else {
-            if (ref $arg eq 'ARRAY') { 
-                tr/\0\1/ \t/ for @{$arg};
             }
             else {
-                tr/\0\1/ \t/ for $arg;
+                if (ref $arg eq 'ARRAY') { 
+                    tr/\0\1/ \t/ for @{$arg};
+                }
+                else {
+                    tr/\0\1/ \t/ for $arg;
+                }
             }
         }
     }
@@ -454,56 +549,71 @@ sub _verify_args {
 
         # Ensure all vars exist within arg...
         my @vars = @{$arg_specs_ref->{$arg_name}{placeholders}||[]};
-        @{$ARGV{$arg_name}}{@vars} = @{$ARGV{$arg_name}}{@vars};
 
-        # Get arg specs...
-        my $arg_vars = $arg_specs_ref->{$arg_name}{var};
+        for my $index (0..$#{$ARGV{$arg_name}}) {
+            my $entry = $ARGV{$arg_name}[$index];
+            @{$entry}{@vars} = @{$entry}{@vars};
 
-        VAR:
-        for my $var (@vars) {
+            # Get arg specs...
+            my $arg_vars = $arg_specs_ref->{$arg_name}{var};
 
-            # Check constraints on vars...
-            if (exists $ARGV{$arg_name}) {
+            VAR:
+            for my $var (@vars) {
 
-                # Named vars...
-                if (ref $ARGV{$arg_name} eq 'HASH' && defined $ARGV{$arg_name}{$var}) {
-                    for my $val (ref $ARGV{$arg_name}{$var} eq 'ARRAY'
-                                    ? @{$ARGV{$arg_name}{$var}}
-                                    :   $ARGV{$arg_name}{$var}
-                                ) {
-                        _bad_arglist( qq{Invalid "$arg_name" argument.\n},
-                                    qq{<$var> must be },
-                                    $arg_vars->{$var}{constraint_desc},
-                                    qq{ but the supplied value ("$val") isn't.}
-                                    )
-                            if $arg_vars->{$var}{constraint}
-                            && ! $arg_vars->{$var}{constraint}->($val);
+                # Check constraints on vars...
+                if (exists $ARGV{$arg_name}) {
+
+                    # Named vars...
+                    if (ref $entry eq 'HASH' && defined $entry->{$var}) {
+                        for my $val (ref $entry->{$var} eq 'ARRAY'
+                                        ? @{$entry->{$var}}
+                                        :   $entry->{$var}
+                                    ) {
+                            _bad_arglist( qq{Invalid "$arg_name" argument.\n},
+                                        qq{<$var> must be },
+                                        $arg_vars->{$var}{constraint_desc},
+                                        qq{ but the supplied value ("$val") isn't.}
+                                        )
+                                if $arg_vars->{$var}{constraint}
+                                && ! $arg_vars->{$var}{constraint}->($val);
+                        }
+                        next VAR;
                     }
-                    next VAR;
-                }
-                # Unnamed vars...
-                elsif (ref $ARGV{$arg_name} ne 'HASH' && defined $ARGV{$arg_name}) {
-                    for my $val (ref $ARGV{$arg_name} eq 'ARRAY'
-                                    ? @{$ARGV{$arg_name}}
-                                    :   $ARGV{$arg_name}
-                                ) {
-                        _bad_arglist( qq{Invalid "$arg_name" argument.\n},
-                                    qq{<$var> must be },
-                                    $arg_vars->{$var}{constraint_desc},
-                                    qq{ but the supplied value ("$val") isn't.}
-                                    )
-                            if $arg_vars->{$var}{constraint}
-                            && ! $arg_vars->{$var}{constraint}->($val);
+                    # Unnamed vars...
+                    elsif (ref $entry ne 'HASH' && defined $entry) {
+                        for my $val (ref $entry eq 'ARRAY'
+                                        ? @{$entry}
+                                        :   $entry
+                                    ) {
+                            _bad_arglist( qq{Invalid "$arg_name" argument.\n},
+                                        qq{<$var> must be },
+                                        $arg_vars->{$var}{constraint_desc},
+                                        qq{ but the supplied value ("$val") isn't.}
+                                        )
+                                if $arg_vars->{$var}{constraint}
+                                && ! $arg_vars->{$var}{constraint}->($val);
+                        }
+                        next VAR;
                     }
-                    next VAR;
                 }
+
+                # Assign placeholder defaults (if necessary)...
+                next ARG if !exists $arg_specs_ref->{$arg_name}{var}{$var}{default};
+
+                $entry->{$var}
+                    = $arg_specs_ref->{$arg_name}{var}{$var}{default};
             }
+        }
 
-            # Assign defaults (if necessary)...
-            next ARG if !exists $arg_specs_ref->{$arg_name}{var}{$var}{default};
+        # Handle defaults for missing args...
+        if (!@{$ARGV{$arg_name}}) {
+            for my $var (@vars) {
+                # Assign defaults (if necessary)...
+                next ARG if !exists $arg_specs_ref->{$arg_name}{var}{$var}{default};
 
-            $ARGV{$arg_name}{$var}
-                = $arg_specs_ref->{$arg_name}{var}{$var}{default};
+                $ARGV{$arg_name}[0]{$var}
+                    = $arg_specs_ref->{$arg_name}{var}{$var}{default};
+            }
         }
     }
 }
@@ -546,21 +656,37 @@ sub _convert_to_regex {
                      my $type = $arg->{var}{$var_name}{type} || q{};
                      push @{$arg->{placeholders}}, $var_name;
                      my $matcher = $STD_MATCHER_FOR{ $type }
-                        or _fail("Unknown type ($type) in specification: $arg_name");
-                    $var_rep ? "(?:[\\s\\0\\1]*($matcher)(?{push \@{\$ARGV{q{$arg_name}}{q{$var_name}}}, \$^N}))+"
-                             : "(?:($matcher)(?{\$ARGV{q{$arg_name}}{q{$var_name}} = \$^N}))"
+                         or _fail("Unknown type ($type) in specification: $arg_name");
+                     $var_rep              ? "(?:[\\s\\0\\1]*($matcher)(?{push \@{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}}}, \$^N}))+"
+                     :
+                     "(?:($matcher)(?{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}} = \$^N}))"
+                   }gexms
+            or do {
+                $regex .= "(?{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{}} = 1})";
+            };
 
-                   }gexms;
-        $arg->{matcher} = "(??{exists\$ARGV{q{$arg_name}}?'(?!)':''}) $regex (?:(?<!\\w)|(?!\\w)) (?{\$ARGV{q{$arg_name}} ||= {}})";
+        if ($arg->{is_repeatable}) {
+            $arg->{matcher}
+                = "$regex (?:(?<!\\w)|(?!\\w)) (?{push \@{\$ARGV{q{$arg_name}}}, {} })";
+        }
+        else {
+            $arg->{matcher}
+                = "(??{exists\$ARGV{q{$arg_name}}?'(?!)':''}) "
+                . ( $arg->{false_vals} 
+                    ? "(?:$arg->{false_vals} (?:(?<!\\w)|(?!\\w)) (?{\$ARGV{q{$arg_name}} ||= [{ q{} => 0 }] }) | $regex (?:(?<!\\w)|(?!\\w)) (?{\$ARGV{q{$arg_name}} ||= [{ q{} => 1}] }))"
+                    : "$regex (?:(?<!\\w)|(?!\\w)) (?{\$ARGV{q{$arg_name}} ||= [{}] })"
+                );
+        }
 
         $generic =~ s{ < (.*?) > }
                      { my $var_name = $1;
                        $var_name =~ s/(\s+)\[\\s\\0\\1]\*/$1/gxms;
                        my $type = $arg->{var}{$var_name}{type} || q{};
+                       my $type_error = $arg->{var}{$var_name}{type_error} || q{};
                        my $matcher = $STD_MATCHER_FOR{ $type };
                        "(?:($matcher|([^\\s\\0\\1]+)"
                        . "(?{\$bad_type ||= "
-                       .  "{arg=>q{$arg_name},type=>q{$type},var=>q{<$var_name>},val=>\$^N};})))"
+                       . "{arg=>q{$arg_name},type=>q{$type},type_error=>q{$type_error}, var=>q{<$var_name>},val=>\$^N};})))"
                      }gexms;
         $arg->{generic_matcher} = $generic;
     }
@@ -597,17 +723,22 @@ sub _get_variants {
     my %variants;
     while (@arg_desc) {
         my $arg_desc_with    = shift @arg_desc;
-
         my $arg_desc_without = $arg_desc_with;
+
         if ($arg_desc_without =~ s/ \[ [^][]* \] //xms) {
             push @arg_desc, $arg_desc_without;
         }
-        if ($arg_desc_with =~ s/ \[ ([^][]*) \] /$1/xms) {
-            push @arg_desc, $arg_desc_with;
+        if ($arg_desc_with =~ m/ \[ ([^][]*) \] /xms) {
+            my $option = $1;
+            for my $alternative ( split /\|/, $option ) {
+                my $arg_desc = $arg_desc_with;
+                $arg_desc =~ s{\[ ([^][]*) \]}{$alternative}xms;
+                push @arg_desc, $arg_desc;
+            }
         }
 
         $arg_desc_with =~ s/[][]//gxms;
-        $arg_desc_with =~ s/\b\W .* \z//xms;
+        $arg_desc_with =~ s/\b[^-\w] .* \z//xms;
         $variants{$arg_desc_with} = 1;
     }
 
@@ -626,7 +757,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.0.5
+This document describes Getopt::Euclid version 0.0.7
 
 
 =head1 SYNOPSIS
@@ -763,7 +894,8 @@ parse the contents of C<@ARGV> using that parser, and
 
 =item 5.
 
-put the results in the global C<%ARGV> variable.
+put the results in the global C<%ARGV> variable (or into specifically named
+optional variables, if you request that -- see L<Exporting Option Variables>).
 
 =back
 
@@ -771,9 +903,12 @@ As a special case, if the module is loaded within some other module
 (i.e. from within a C<.pm> file), it still locates and extracts POD
 information, but instead of parsing C<@ARGV> immediately, it caches that
 information and installs an C<import()> subroutine in the caller module.
-That new C<import()> acts just like Getopt::Euclid's own import, except that
-it adds the POD from the caller module to the POD of the callee. See
-L<Module Interface> for more details.
+That new C<import()> acts just like Getopt::Euclid's own import, except
+that it adds the POD from the caller module to the POD of the callee.
+
+All of which just means you can put some or all of your CLI specification
+in a module, rather than in the application's source file.
+See L<Module Interface> for more details.
 
 =head1 INTERFACE 
 
@@ -794,14 +929,17 @@ You write:
 
     use Getopt::Euclid;
 
-and your module will then become just like Getopt::Euclid, except that your
-module's POD will be prepended to the POD of any module that loads yours.
+and your module will then act just like Getopt::Euclid (i.e. you can use
+your module I<instead> of Getopt::Euclid>, except that your module's POD
+will also be prepended to the POD of any module that loads yours. In
+other words, you can use Getopt::Euclid in a module to create a standard
+set of CLI arguments, which can then be added to any application simply
+by loading your module.
 
-You don't need to pass any options.
+To accomplish this trick Getopt::Euclid installs an C<import()>
+subroutine in your module. If your module already has an C<import()>
+subroutine defined, terrible things happen. So don't do that.
 
-Getopt::Euclid installs an C<import()> subroutine in your module. If
-your module already has an C<import()> subroutine defined, terrible
-things happen. So don't do that.
 
 =head2 POD Interface
 
@@ -892,6 +1030,7 @@ format:
     ARGUMENT_DESCRIPTION
 
     =for Euclid:
+        ARGUMENT_OPTIONS
         PLACEHOLDER_CONSTRAINTS
 
 =head3 Argument structure
@@ -925,6 +1064,7 @@ Any whitespace in the structure specifies that any amount of whitespace
 =item *
 
 A vertical bar within an optional component indicates an alternative.
+Note that such vertical bars may only appear within square brackets.
 
 =back
 
@@ -958,6 +1098,73 @@ C<$ARGV{'-input'}> to the supplied file name.
 The point of setting every possible variant within C<%ARGV> is that this
 allows you to use a single key (say C<$ARGV{'-input'}>, regardless of
 how the argument is actually specified on the command-line.
+
+=head2 Repeatable arguments
+
+Normally Getopt::Euclid only accepts each specified argument once, the first
+time it appears in @ARGV. However, you can specify that an argument may appear
+more than once, using the C<repeatable> option:
+
+    =item file=<filename>
+
+    =for Euclid:
+        repeatable
+
+When an argument is marked repeatable the corresponding entry of
+C<%ARGV> will not contain a hash reference, but rather an array of hash
+references, each of which records each repetition.
+
+
+=head2 Boolean arguments
+
+If an argument has no placeholders it is treated as a boolean switch and it's
+entry in C<%ARGV> will be true if the argument appeared in C<@ARGV>.
+
+For a boolean argument, you can also specify variations that are I<false>, if
+they appear. For example, a common idiom is:
+
+    =item --print
+
+    Print results
+
+    =item --noprint
+
+    Don't print results
+
+These two arguments are effectively the same argument, just with opposite
+boolean values. However, as specified above, only one of C<$ARGV{'--print'}>
+and C<$ARGV{'--noprint'}> will be set. 
+
+As an alternative you can specify a single argument that accepts either value
+and sets both appropriately:
+
+    =item --[no]print
+
+    [Don't] print results
+
+    =for Euclid:
+        false: --noprint
+
+With this specification, if C<--print> appears in C<@ARGV>, then
+C<$ARGV{'--print'}> will be true and C<$ARGV{'--noprint'}> will be false.
+On the other hand, if C<--noprint> appears in C<@ARGV>, then
+C<$ARGV{'--print'}> will be false and C<$ARGV{'--noprint'}> will be true.
+
+The specified false values can follow any convention you wish:
+
+    =item [+-]print
+
+    =for Euclid:
+        false: -print
+
+or:
+
+    =item -report[_not]
+
+    =for Euclid:
+        false: report_not
+
+et cetera.
 
 =head2 Multiple placeholders
 
@@ -1078,7 +1285,7 @@ You can also specify an operator expression after the type name:
 
 specifies that C<< <h> >> has to be given an integer that's greater than zero,
 and that C<< <w> >> has to be given a number (not necessarily an integer)
-that's no more than zero.
+that's no more than 100.
 
 These type constraints have two alternative syntaxes:
 
@@ -1120,7 +1327,6 @@ Getopt::Euclid recognizes the following standard placeholder types:
                     (same as: integer >= 0)
 
     number          ...must be an number        num    n
-                    (same as: number > 0)
 
     +number         ...must be a positive       +num   +n
                     number
@@ -1142,6 +1348,24 @@ Getopt::Euclid recognizes the following standard placeholder types:
                     file in a writeable
                     directory)
                     
+
+=head2 Placeholder type errors
+
+If a command-line argument's placeholder value doesn't satisify the specified
+type, an error message is automatically generated. However, you can provide
+your own message instead, using the C<.type.error> specifier:
+
+    =for Euclid:
+        h.type:        integer, h > 0 && h < 100
+        h.type.error:  <h> must be between 0 and 100 (not h)
+
+        w.type:        number,  Math::is_prime(w) || w % 2 == 0
+        w.type.error:  Can't use w for <w> (must be an even prime number)
+
+Whenever an explicit error message is provided, any occurrence within
+the message of the placeholder's unbracketed name is replaced by the
+placeholder's value (just as in the type test itself).
+
 
 =head2 Placeholder defaults
 
@@ -1228,6 +1452,49 @@ as a cuddled version of:
     -v -x -e'print time'
 
 
+=head2 Exporting Option Variables
+
+By default, the module only stores arguments into the global %ARGV hash.
+You can request that options are exported as variables into the calling package
+the special C<':vars'> specifier:
+
+    use Getopt::Euclid qw( :vars );
+
+That is, if your program accepts the following arguments:
+
+    -v
+    --mode <modename>
+    <infile>
+    <outfile>
+    --auto-fudge <factor>      (repeatable)
+    --size <w>x<h>
+
+Then these variables will be exported
+
+    $ARGV_v
+    $ARGV_mode
+    $ARGV_infile
+    $ARGV_outfile
+    @ARGV_auto_fudge    # With elements being the factors
+    %ARGV_size          # With entries $ARGV_size{w} and $ARGV_size{h}
+
+For options that have multiple variants, only the longest variant is exported.
+
+The type of variable exported (scalar, hash, or array) is determined by the
+type of the corresponding value in C<%ARGV>. Command-line flags and arguments
+that take single values will produce scalars, arguments that take multiple
+values will produce hashes, and repeatable arguments will produce arrays.
+
+If you don't like the default prefix of "ARGV_", you can specify your own,
+such as "opt_", like this:
+
+    use Getopt::Euclid qw( :vars<opt_> );
+
+The major advantage of using exported variables is that any misspelling of
+argument variables in your code will be caught at compile-time by
+C<use strict>.
+
+
 =head2 Standard arguments
 
 Getopt::Euclid automatically provides four standard arguments to any
@@ -1277,22 +1544,25 @@ exactly. That is, if your program accepts the following arguments:
     --mode <modename>
     <infile>
     <outfile>
+    --auto-fudge
 
 Then the keys that appear in C<%ARGV> will be:
 
-    '-v
+    '-v'
     '--mode'
     '<infile>'
     '<outfile>'
+    '--auto-fudge'
 
 In some cases, however, it may be preferable to have Getopt::Euclid set
 up those hash keys without "decorations". That is, to have the keys of
 C<%ARGV> be simply:
 
-    'v
+    'v'
     'mode'
     'infile'
     'outfile'
+    'auto_fudge'
 
 You can arrange this by loading the module with the special C<':minimal_keys'>
 specifier:

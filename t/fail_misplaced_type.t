@@ -8,7 +8,8 @@ BEGIN {
 }
 
 BEGIN {
-    $INFILE  = $0;
+    $OUTFILE = $0;
+    $INFILE  = 'nexistpas';
     $LEN     = 42;
     $H       = 2;
     $W       = -10;
@@ -16,6 +17,7 @@ BEGIN {
 
     @ARGV = (
         '-v',
+        "-out=", $OUTFILE,
         "size ${H}x${W}",
         "-i   $INFILE",
         "-lgth $LEN",
@@ -23,12 +25,12 @@ BEGIN {
     );
 }
 
+
 if (eval { require Getopt::Euclid and Getopt::Euclid->import(); 1 }) {
     ok 0 => 'Unexpectedly succeeded';
 }
 else {
-    like $@, qr/Missing required argument:/ => 'Failed as expected'; 
-    like $@, qr/-o/                         => 'With expected message'; 
+    like $@, qr/Invalid constraint: min.type: int\n\(No <min> placeholder in argument: --foo <bar>/ => 'Failed as expected'; 
 }
 
 __END__
@@ -88,6 +90,8 @@ Display length [default: 24 ]
 Print all warnings
 
 =item --timeout [<min>] [<max>]
+
+=item --foo <bar>
 
 =for Euclid:
     min.type: int

@@ -1,3 +1,12 @@
+use Test::More 'no_plan';
+
+BEGIN {
+    require 5.006_001 or plan 'skip_all';
+    close *STDERR;
+    open *STDERR, '>', \my $stderr;
+    *CORE::GLOBAL::exit = sub { die $stderr };
+}
+
 BEGIN {
     $INFILE  = $0;
     $OUTFILE = $0;
@@ -15,8 +24,6 @@ BEGIN {
         "--timeout $TIMEOUT",
     );
 }
-
-use Test::More 'no_plan';
 
 if (eval { require Getopt::Euclid and Getopt::Euclid->import(); 1 }) {
     ok 0 => 'Unexpectedly succeeded';

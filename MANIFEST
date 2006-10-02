@@ -31,3 +31,9 @@ t/simple_shuffle.t
 t/fail_minimal_clash.t
 t/fail_unknown_mode.t
 t/minimal.t
+t/false.t
+t/repeatable.t
+t/vars_export.t
+t/hier_export.t
+t/fail_misplaced_type.t
+t/fail_type_msg.t

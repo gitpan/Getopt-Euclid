@@ -9,13 +9,15 @@ BEGIN {
 
 BEGIN {
     $INFILE  = $0;
-    $LEN     = 42;
+    $OUTFILE = $0;
+    $LEN     = 'forty-two';
     $H       = 2;
     $W       = -10;
     $TIMEOUT = 7;
 
     @ARGV = (
         '-v',
+        "-out=", $OUTFILE,
         "size ${H}x${W}",
         "-i   $INFILE",
         "-lgth $LEN",
@@ -27,8 +29,7 @@ if (eval { require Getopt::Euclid and Getopt::Euclid->import(); 1 }) {
     ok 0 => 'Unexpectedly succeeded';
 }
 else {
-    like $@, qr/Missing required argument:/ => 'Failed as expected'; 
-    like $@, qr/-o/                         => 'With expected message'; 
+    like $@, qr/Length \(forty-two\) is too small/   => 'Failed as expected'; 
 }
 
 __END__
@@ -80,8 +81,9 @@ Specify height and width
 Display length [default: 24 ]
 
 =for Euclid:
-    l.type:    int > 0
-    l.default: 24
+    l.type:         int > 0
+    l.type.error:   Length (l) is too small!
+    l.default:      24
 
 =item -v[erbose]
 

@@ -1,12 +1,3 @@
-use Test::More 'no_plan';
-
-BEGIN {
-    require 5.006_001 or plan 'skip_all';
-    close *STDERR;
-    open *STDERR, '>', \my $stderr;
-    *CORE::GLOBAL::exit = sub { die $stderr };
-}
-
 BEGIN {
     $INFILE  = $0;
     $OUTFILE = $0;
@@ -19,7 +10,13 @@ BEGIN {
         "-i   $INFILE",
         "-out=", $OUTFILE,
         "-lgth $LEN",
-        "-step ${H}x${W}",
+        "-lgth " . (1+$LEN),
+        "-lgth " . $LEN*2,
+        "size ${H}x${W}",
+        '-v',
+        '-v',
+        '-v',
+        '-v',
         '-v',
         "--timeout $TIMEOUT",
         '-w', 's p a c e s',
@@ -27,20 +24,45 @@ BEGIN {
     );
 }
 
-if (eval { require Getopt::Euclid;
-           Getopt::Euclid->import(qw( :minimal_keys ));
-           1;
-         }
-   ) {
-    is 0 => 'Succeeded unexpectedly';
+use Getopt::Euclid;
+use Test::More 'no_plan';
+
+sub got_arg {
+    my ($key, $val) = @_;
+    is $ARGV{$key}, $val, "Got expected value for $key";
 }
-else {
-    my $error = $@;
-    like $error, qr{\AInternal error: minimalist mode caused arguments}
-                                                    => 'Clashed as expected';
-    like $error, qr{'-step}                         => 'Clashed on -step';
-    like $error, qr{'<step>'}                       => 'Clashed on <step>';
-}
+
+is keys %ARGV, 17 => 'Right number of args returned';
+
+got_arg -i       => $INFILE;
+got_arg -infile  => $INFILE;
+
+is_deeply $ARGV{-l},      [42,43,84],   => 'Repeated length';
+is_deeply $ARGV{-len},    [42,43,84],   => 'Repeated length';
+is_deeply $ARGV{-length}, [42,43,84],   => 'Repeated length';
+is_deeply $ARGV{-lgth},   [42,43,84],   => 'Repeated length';
+
+got_arg -girth   => 42;
+
+got_arg -o       => $OUTFILE;
+got_arg -ofile   => $OUTFILE;
+got_arg -out     => $OUTFILE;
+got_arg -outfile => $OUTFILE;
+
+is_deeply $ARGV{-v}, [1,1,1,1,1],         => 'Repeated verbosity';
+is_deeply $ARGV{-verbose}, [1,1,1,1,1],   => 'Repeated verbose verbosity';
+
+is ref $ARGV{'--timeout'}, 'HASH'     => 'Hash reference returned for timeout';
+is $ARGV{'--timeout'}{min}, $TIMEOUT  => 'Got expected value for timeout <min>';
+is $ARGV{'--timeout'}{max}, -1        => 'Got default value for timeout <max>';
+
+is ref $ARGV{size}, 'HASH'      => 'Hash reference returned for size';
+is $ARGV{size}{h}, $H           => 'Got expected value for size <h>';
+is $ARGV{size}{w}, $W           => 'Got expected value for size <w>';
+
+is $ARGV{-w}, 's p a c e s'      => 'Handled spaces correctly';
+
+is $ARGV{'<step>'}, 7      => 'Handled step size correctly';
 
 __END__
 
@@ -82,7 +104,7 @@ Specify output file
 
 =over
 
-=item  -step <h>x<w>
+=item  size <h>x<w>
 
 Specify height and width
 
@@ -91,6 +113,7 @@ Specify height and width
 Display length [default: 24 ]
 
 =for Euclid:
+    repeatable
     l.type:    int > 0
     l.default: 24
 
@@ -104,6 +127,9 @@ Display girth [default: 42 ]
 =item -v[erbose]
 
 Print all warnings
+
+=for Euclid:
+    repeatable
 
 =item --timeout [<min>] [<max>]
 

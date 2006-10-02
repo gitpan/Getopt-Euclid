@@ -28,3 +28,26 @@ Revision history for Getopt-Euclid
     - Fixed bug in license defaults (thanks clpoda!)
 
     - Added :minimal_keys mode (thanks Thomas)
+
+
+0.0.6  Sun Sep 17 02:48:04 2006
+
+    - Removed spurious "compilation failed message" for interface errors
+      (thanks David!)
+
+    - Added 'repeatable' option (thanks Thomas)
+
+
+
+0.0.7  Tue Oct  3 03:54:01 2006
+
+    - Added :vars<opt_> mode (thanks Tim!)
+
+    - Fixed option names containing dashes. (thanks Tim!)
+
+    - Fixed minimal matching mode to more accurately detect clashes (thanks
+      Thomas)
+
+    - Added user-specified type.error messages (thanks Thomas)
+
+    - Tightened up checking of placeholder type constraints (thanks Tim)
