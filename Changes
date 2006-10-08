@@ -51,3 +51,18 @@ Revision history for Getopt-Euclid
     - Added user-specified type.error messages (thanks Thomas)
 
     - Tightened up checking of placeholder type constraints (thanks Tim)
+
+
+0.0.8  Sun Oct  8 12:45:17 2006
+
+    - Remove spurious smart comments
+
+    - Added missing documentation for placeholder misspecification diagnostic
+
+    - Made contents of validator subs fallback to main::
+
+    - Allowed false: flags to be regexes
+
+    - Fixed readable/writable test for '-' (thanks Thomas)
+
+    - Added regexes as valid placeholder type constraints

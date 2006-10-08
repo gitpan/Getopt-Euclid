@@ -11,7 +11,7 @@ BEGIN {
         "-out=", $OUTFILE,
         "-lgth $LEN",
         "size ${H}x${W}",
-        '--auto-fudge',
+        '-no-fudge',
         '-v',
         "--timeout $TIMEOUT",
         '-w', 's p a c e s',
@@ -47,8 +47,8 @@ got_arg 'outfile' => $OUTFILE;
 got_arg 'v'       => 1,
 got_arg 'verbose' => 1,
 
-got_arg 'auto'       => 1;
-got_arg 'auto_fudge' => 1;
+got_arg 'no'       => 1;
+got_arg 'no_fudge' => 1;
 
 is ref $ARGV{'timeout'}, 'HASH'     => 'Hash reference returned for timeout';
 is $ARGV{'timeout'}{min}, $TIMEOUT  => 'Got expected value for timeout <min>';
@@ -88,13 +88,13 @@ Specify input file
     file.type:    readable
     file.default: '-'
 
-=item  -o[ut][file]= <file>    
+=item  -o[ut][file]= <out_file>    
 
 Specify output file
 
 =for Euclid:
-    file.type:    writable
-    file.default: '-'
+    out_file.type:    writable
+    out_file.default: '-'
 
 =back
 
@@ -136,9 +136,12 @@ Print all warnings
 
 Test something spaced
 
-=item --auto[-fudge]
+=item [-]-no[-fudge]
 
 Automaticaly fudge the factors.
+
+=for Euclid:
+    false: --no[-fudge]
 
 =item <step>
 

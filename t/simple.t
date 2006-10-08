@@ -18,7 +18,13 @@ BEGIN {
     );
 }
 
+sub lucky {
+    my ($num) = @_;
+    return $num == 7;
+}
+
 use Getopt::Euclid;
+
 use Test::More 'no_plan';
 
 sub got_arg {
@@ -84,13 +90,13 @@ Specify input file
     file.type:    readable
     file.default: '-'
 
-=item  -o[ut][file]= <file>    
+=item  -o[ut][file]= <out_file>    
 
 Specify output file
 
 =for Euclid:
-    file.type:    writable
-    file.default: '-'
+    out_file.type:    writable
+    out_file.default: '-'
 
 =back
 
@@ -135,6 +141,9 @@ Test something spaced
 =item <step>
 
 Step size
+
+=for Euclid:
+    step.type: int, lucky(step)
 
 =item --version
 

@@ -37,3 +37,4 @@ t/vars_export.t
 t/hier_export.t
 t/fail_misplaced_type.t
 t/fail_type_msg.t
+t/regex_type.t

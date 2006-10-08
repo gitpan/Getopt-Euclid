@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.0.7');
+use version; $VERSION = qv('0.0.8');
 
 use warnings;
 use strict;
@@ -201,10 +201,10 @@ sub import {
               'number'  => sub { 1 }, # Always okay (matcher ensures this)
              '+number'  => sub { $_[0] > 0 },
             '0+number'  => sub { $_[0] >= 0 },
-              'input'   => sub { -r $_[0] },
+              'input'   => sub { $_[0] eq '-' || -r $_[0] },
               'output'  => sub { my (undef, $dir) = splitpath($_[0]);
                                $dir ||= '.';
-                               -e $_[0] ? -w $_[0] : -w $dir
+                               $_[0] eq '-' ? 1 : -e $_[0] ? -w $_[0] : -w $dir
                            },
         );
 
@@ -232,7 +232,10 @@ sub import {
 
         my @false_vals;
         while ($info =~ s{^ \s* false \s*[:=] \s* ([^\n]*)}{}xms) {
-            push @false_vals, quotemeta $1;
+            my $regex = $1;
+            1 while $regex =~ s/ \[ ([^]]*) \] /(?:$1)?/gxms;
+            $regex =~ s/ (\s+) /$1.'[\\s\\0\\1]*'/egxms;
+            push @false_vals, $regex;
         }
         if (@false_vals) {
             $arg->{false_vals} = '(?:' . join('|', @false_vals) .')';
@@ -269,7 +272,10 @@ sub import {
                 }
                 else {
                     $arg->{var}{$var}{constraint_desc} = $matchtype;
-                    $arg->{var}{$var}{constraint} = $STD_CONSTRAINT_FOR{$matchtype}
+                    $arg->{var}{$var}{constraint} =
+                        $matchtype =~ m{\A\s*/.*/\s*\z}xms
+                            ? sub {1}
+                            : $STD_CONSTRAINT_FOR{$matchtype}
                         or _fail("Unknown .type constraint: $spec");
                 }
             }
@@ -445,6 +451,13 @@ sub import {
 
 # Recursively remove decorations on %ARGV keys
 
+sub AUTOLOAD {
+    our $AUTOLOAD;
+    $AUTOLOAD =~ s{.*::}{main::}xms;
+    no strict 'refs';
+    goto &$AUTOLOAD;
+}
+
 sub _minimize_name {
     my ($name) = @_;
     $name =~ s{[][]}{}gxms;   # remove all square brackets
@@ -494,8 +507,6 @@ sub _doesnt_match {
             
             my $msg;
             if ($msg = $bad_type->{type_error}) {
-                use Smart::Comments;
-                ### $msg
                 my $var = $bad_type->{var};
                 $var =~ s{\W+}{}gxms;
                 $msg =~ s{(?<!<)\b$var\b|\b$var\b(?!>)}{$bad_type->{val}}gxms;
@@ -655,7 +666,9 @@ sub _convert_to_regex {
                      $var_name =~ s/(\s+)\[\\s\\0\\1]\*/$1/gxms;
                      my $type = $arg->{var}{$var_name}{type} || q{};
                      push @{$arg->{placeholders}}, $var_name;
-                     my $matcher = $STD_MATCHER_FOR{ $type }
+                     my $matcher = $type =~ m{\A\s*/.*/\s*\z}xms
+                                        ? eval "qr$type"
+                                        : $STD_MATCHER_FOR{ $type }
                          or _fail("Unknown type ($type) in specification: $arg_name");
                      $var_rep              ? "(?:[\\s\\0\\1]*($matcher)(?{push \@{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}}}, \$^N}))+"
                      :
@@ -683,7 +696,9 @@ sub _convert_to_regex {
                        $var_name =~ s/(\s+)\[\\s\\0\\1]\*/$1/gxms;
                        my $type = $arg->{var}{$var_name}{type} || q{};
                        my $type_error = $arg->{var}{$var_name}{type_error} || q{};
-                       my $matcher = $STD_MATCHER_FOR{ $type };
+                       my $matcher = $type =~ m{\A\s*/.*/\s*\z}xms
+                                        ? eval "qr$type"
+                                        : $STD_MATCHER_FOR{ $type };
                        "(?:($matcher|([^\\s\\0\\1]+)"
                        . "(?{\$bad_type ||= "
                        . "{arg=>q{$arg_name},type=>q{$type},type_error=>q{$type_error}, var=>q{<$var_name>},val=>\$^N};})))"
@@ -757,7 +772,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.0.7
+This document describes Getopt::Euclid version 0.0.8
 
 
 =head1 SYNOPSIS
@@ -1152,17 +1167,17 @@ C<$ARGV{'--print'}> will be false and C<$ARGV{'--noprint'}> will be true.
 
 The specified false values can follow any convention you wish:
 
-    =item [+-]print
+    =item [+|-]print
 
     =for Euclid:
         false: -print
 
 or:
 
-    =item -report[_not]
+    =item -report[_no[t]]
 
     =for Euclid:
-        false: report_not
+        false: -report_no[t]
 
 et cetera.
 
@@ -1309,6 +1324,11 @@ the placeholder as many times as necessary:
         h.type: integer, h > 0 && h < 100
         w.type: number,  Math::is_prime(w) || w % 2 == 0
 
+Note that the expressions are evaluated in the C<package main> namespace,
+so it's important to qualify any subroutines that are not in that namespace.
+Furthermore, any subroutines used must be defined (or loaded from a module)
+I<before> the C<use Getopt::Euclid> statement.
+
 =head2 Standard placeholder types
 
 Getopt::Euclid recognizes the following standard placeholder types:
@@ -1348,6 +1368,9 @@ Getopt::Euclid recognizes the following standard placeholder types:
                     file in a writeable
                     directory)
                     
+    /<regex>/       ...must be a string
+                    matching the specified
+                    pattern
 
 =head2 Placeholder type errors
 
@@ -1647,6 +1670,27 @@ instead of:
 
     =for Euclid
         curse.default: '*$@!&'
+
+=item Invalid constraint: %s (No <%s> placeholder in argument: %s)
+
+You attempted to define a C<.type> constraint for a placeholder that
+didn't exist. Typically this is the result of the misspelling of a
+placeholder name:
+
+    =item -foo <bar>
+
+    =for Euclid:
+        baz.type: integer
+
+or a C<=for Euclid:> that has drifted away from its argument:
+
+    =item -foo <bar>
+
+    =item -verbose
+
+    =for Euclid:
+        bar.type: integer
+
 
 =item Getopt::Euclid loaded a second time
 

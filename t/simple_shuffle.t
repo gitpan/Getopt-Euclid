@@ -1,6 +1,6 @@
 BEGIN {
     $INFILE  = $0;
-    $OUTFILE = $0;
+    $OUTFILE = '-';
     $LEN     = 42;
     $H       = 2;
     $W       = -10;
