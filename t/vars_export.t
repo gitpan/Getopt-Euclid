@@ -1,3 +1,4 @@
+our ( $INFILE, $OUTFILE, $LEN, $H, $W, $TIMEOUT );
 BEGIN {
     $INFILE  = $0;
     $OUTFILE = $0;
@@ -7,6 +8,8 @@ BEGIN {
     $TIMEOUT = 7;
 
     @ARGV = (
+        # doesn't include --missing in order to test that the corresponding variable
+        # is still exported even if not present in @ARGV
         "-i   $INFILE",
         "-out=", $OUTFILE,
         "-lgth $LEN",
@@ -24,15 +27,19 @@ BEGIN {
 use Getopt::Euclid qw( :vars<opt_> );
 use Test::More 'no_plan';
 
+use strict;
+
 sub got_arg {
     my ($key, $val) = @_;
     my $var_name = "opt_$key";
+    no strict 'refs';
     is ${$var_name}, $val, "Got expected value for $var_name";
 }
 
 sub not_arg {
     my ($key, $val) = @_;
     my $var_name = "opt_$key";
+    no strict 'refs';
     is ${$var_name}, undef, "$var_name should be undefined";
 }
 
@@ -56,6 +63,8 @@ got_arg 'verbose' => 1,
 
 not_arg 'skip_some'      => 1,
 got_arg 'skip_something' => 1,
+
+is $opt_missing, undef, 'Got $opt_missing as undef and use strict was happy';
 
 is_deeply \@opt_also, [ 42, 43 ] => 'Got repeated options as array';
 
@@ -160,6 +169,10 @@ Test something spaced
 =item <step>
 
 Step size
+
+=item --missing
+
+The missing link
 
 =item --version
 

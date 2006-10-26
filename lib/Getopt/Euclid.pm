@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.0.8');
+use version; $VERSION = qv('0.0.9');
 
 use warnings;
 use strict;
@@ -154,6 +154,7 @@ sub import {
 
     # Convert each arg entry to a hash...
     my (%requireds, %options);
+    my %long_names;
     my $seq_num = 0;
     my %seen;
     while (@requireds) {
@@ -172,6 +173,7 @@ sub import {
                     if $seen{$minimal};
             $seen{$minimal} = $name;
         }
+        $long_names{ _longestname(@variants) } = 1;
     }
     while (@options) {
         my ($name, $spec) = splice @options, 0, 2;
@@ -189,7 +191,9 @@ sub import {
                     if $seen{$minimal};
             $seen{$minimal} = $name;
         }
+        $long_names{ _longestname(@variants) } = 1;
     }
+    _minimize_entries_of( \%long_names );
 
     my %STD_CONSTRAINT_FOR;
     BEGIN {
@@ -430,16 +434,16 @@ sub import {
 
             if ($vars_prefix) {
                 _minimize_entries_of( \%vars_opt_vals );
-                my $maximal = (sort { length $a <=> length $b || $a cmp $b } keys %vars_opt_vals)[-1];
-                my $export_as = $vars_prefix . $maximal;
-                $export_as =~ s{\W}{_}gxms; # for '-'
-                my $callpkg = caller($Exporter::ExportLevel || 0);
-                no strict 'refs';
-                *{"$callpkg\::$export_as"}
-                    = (ref $vars_opt_vals{$maximal}) ? $vars_opt_vals{$maximal}
-                    :                                 \$vars_opt_vals{$maximal};
+                my $maximal = _longestname(keys %vars_opt_vals);
+                _export_var($vars_prefix, $maximal, $vars_opt_vals{$maximal});
+                delete $long_names{$maximal};
             }
         }
+    }
+
+    if ($vars_prefix) {
+        # export any unspecified options as undef to keep use strict happy
+        _export_var($vars_prefix, $_, undef) for keys %long_names;
     }
 
     if ($minimal_keys) {
@@ -761,6 +765,20 @@ sub _get_variants {
 }
 
 
+sub _longestname {
+    return (sort { length $a <=> length $b || $a cmp $b } @_)[-1];
+}
+
+
+sub _export_var {
+    my ($prefix, $key, $value) = @_;
+    my $export_as = $prefix . $key;
+    $export_as =~ s{\W}{_}gxms; # mainly for '-'
+    my $callpkg = caller( 1 + ($Exporter::ExportLevel || 0) );
+    no strict 'refs';
+    *{"$callpkg\::$export_as"} = (ref $value) ? $value : \$value;
+}
+
 
 1; # Magic true value required at end of module
 __END__
@@ -772,7 +790,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.0.8
+This document describes Getopt::Euclid version 0.0.9
 
 
 =head1 SYNOPSIS
