@@ -1,4 +1,4 @@
-Getopt::Euclid version 0.0.9
+Getopt::Euclid version 0.1.0
 
        Getopt::Euclid uses your program's own documentation to create a com-
        mand-line argument parser. This ensures that your program's documented

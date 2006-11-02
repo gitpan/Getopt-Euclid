@@ -71,3 +71,15 @@ Revision history for Getopt-Euclid
 0.0.9  Thu Oct 26 21:18:46 2006
 
     - Patched :vars<opt_> mode to export all args (thanks Tim!)
+
+
+0.1.0  Thu Nov  2 19:47:05 2006
+
+    - Fixed failure to recognize +integer and 0+integer type specification
+      (thanks Ron)
+
+    - Added quotemeta'ing of regexically special characters 
+      (thanks Ron)
+
+    - Repatched :vars<opt_> mode to really export all args
+      (thanks again Tim!)

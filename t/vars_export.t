@@ -8,8 +8,12 @@ BEGIN {
     $TIMEOUT = 7;
 
     @ARGV = (
-        # doesn't include --missing in order to test that the corresponding variable
-        # is still exported even if not present in @ARGV
+        # doesn't include the --missing-* options in order to test that the
+        # corresponding variable is still exported even if not present in @ARGV.
+        # "--missing-bool",
+        # "--missing-repopt foo", "--missing-repopt bar",
+        # "--missing-repval foo bar",
+        # "--missing-hash ping,pong",
         "-i   $INFILE",
         "-out=", $OUTFILE,
         "-lgth $LEN",
@@ -64,19 +68,24 @@ got_arg 'verbose' => 1,
 not_arg 'skip_some'      => 1,
 got_arg 'skip_something' => 1,
 
-is $opt_missing, undef, 'Got $opt_missing as undef and use strict was happy';
-
-is_deeply \@opt_also, [ 42, 43 ] => 'Got repeated options as array';
-
 is $opt_timeout{min}, $TIMEOUT  => 'Got expected value for timeout <min>';
 is $opt_timeout{max}, -1        => 'Got default value for timeout <max>';
 
 is $opt_size{h}, $H           => 'Got expected value for size <h>';
 is $opt_size{w}, $W           => 'Got expected value for size <w>';
 
+is_deeply \@opt_also, [ 42, 43 ] => 'Got repeated options as array';
+
 is_deeply \@opt_w, ['s p a c e s']      => 'Handled spaces correctly';
 
 is $opt_step, 7      => 'Handled step size correctly';
+
+# test options that aren't given in @ARGV are still exported
+is         $opt_missing_bool,  undef, 'Got $opt_missing_bool as undef and use strict was happy';
+is_deeply \%opt_missing_hash,  { },   'Got %opt_missing_hash with 0 keys and use strict was happy';
+is_deeply \@opt_missing_repval, [ ],  'Got @opt_missing_repval with 0 elements and use strict was happy';
+is_deeply \@opt_missing_repopt, [ ],  'Got @opt_missing_repopt with 0 elements and use strict was happy';
+
 
 __END__
 
@@ -170,9 +179,24 @@ Test something spaced
 
 Step size
 
-=item --missing
+=item --missing-bool
 
-The missing link
+A missing option (boolean)
+
+=item --missing-hash <a>,<b>
+
+A missing option (hash)
+
+=item --missing-repval <a>...
+
+A missing option (repeatable value)
+
+=item --missing-repopt <a>
+
+A missing option (repeatable option)
+
+=for Euclid:
+    repeatable
 
 =item --version
 

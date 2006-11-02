@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.0.9');
+use version; $VERSION = qv('0.1.0');
 
 use warnings;
 use strict;
@@ -173,7 +173,7 @@ sub import {
                     if $seen{$minimal};
             $seen{$minimal} = $name;
         }
-        $long_names{ _longestname(@variants) } = 1;
+        $long_names{ _longestname(@variants) } = $name;
     }
     while (@options) {
         my ($name, $spec) = splice @options, 0, 2;
@@ -191,7 +191,7 @@ sub import {
                     if $seen{$minimal};
             $seen{$minimal} = $name;
         }
-        $long_names{ _longestname(@variants) } = 1;
+        $long_names{ _longestname(@variants) } = $name;
     }
     _minimize_entries_of( \%long_names );
 
@@ -394,7 +394,6 @@ sub import {
 
     _verify_args($all_args_ref);
 
-
     # Clean up %ARGV...
 
     for my $arg_name (keys %ARGV) {
@@ -442,8 +441,16 @@ sub import {
     }
 
     if ($vars_prefix) {
-        # export any unspecified options as undef to keep use strict happy
-        _export_var($vars_prefix, $_, undef) for keys %long_names;
+        # export any unspecified options to keep use strict happy
+        for my $opt_name (keys %long_names) {
+            my $arg_name = $long_names{$opt_name};
+            my $arg_info = $all_args_ref->{$arg_name};
+            my $val;
+            $val = [ ] if $arg_info->{is_repeatable}
+                       or $arg_name =~ />\.\.\./;
+            $val = { } if keys %{ $arg_info->{var} } > 1;
+            _export_var($vars_prefix, $opt_name, $val);
+        }
     }
 
     if ($minimal_keys) {
@@ -648,8 +655,8 @@ BEGIN {
     );
 
     _make_equivalent(\%STD_MATCHER_FOR,
-        integer => [qw( int i +int +i 0+int 0+i )],
-        number  => [qw( num n +num +n 0+num 0+n )],
+        integer => [qw( int i +int +i 0+int 0+i +integer 0+integer )],
+        number  => [qw( num n +num +n 0+num 0+n +number 0+number   )],
         input   => [qw( readable in )],
         output  => [qw( writable writeable out )],
         string  => [qw( str s )],
@@ -662,7 +669,13 @@ sub _convert_to_regex {
     for my $arg_name ( keys %{$args_ref} ) {
         my $arg = $args_ref->{$arg_name};
         my $regex = $arg_name;
+
+        # Quotemeta specials...
+        $regex =~ s{([@#$^*()+{}?|])}{\\$1}gxms;
+
+        # Convert optionals...
         1 while $regex =~ s/ \[ ([^]]*) \] /(?:$1)?/gxms;
+
         $regex =~ s/ (\s+) /$1.'[\\s\\0\\1]*'/egxms;
         my $generic = $regex;
         $regex =~ s{ < (.*?) >(\.\.\.|) }
@@ -790,7 +803,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.0.9
+This document describes Getopt::Euclid version 0.1.0
 
 
 =head1 SYNOPSIS
@@ -1508,6 +1521,7 @@ That is, if your program accepts the following arguments:
     <infile>
     <outfile>
     --auto-fudge <factor>      (repeatable)
+    --also <a>...
     --size <w>x<h>
 
 Then these variables will be exported
@@ -1516,7 +1530,8 @@ Then these variables will be exported
     $ARGV_mode
     $ARGV_infile
     $ARGV_outfile
-    @ARGV_auto_fudge    # With elements being the factors
+    @ARGV_auto_fudge
+    @ARGV_also
     %ARGV_size          # With entries $ARGV_size{w} and $ARGV_size{h}
 
 For options that have multiple variants, only the longest variant is exported.
