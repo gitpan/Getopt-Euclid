@@ -11,15 +11,20 @@ BEGIN {
         "-out=", $OUTFILE,
         "-lgth $LEN",
         "size ${H}x${W}",
-        '-no-fudge',
         '-v',
         "--timeout $TIMEOUT",
-        '-w', 's p a c e s',
+        '--with', 's p a c e s',
         7,
     );
 }
 
-use Getopt::Euclid qw( :minimal_keys );
+sub lucky {
+    my ($num) = @_;
+    return $num == 7;
+}
+
+use Getopt::Euclid;
+
 use Test::More 'no_plan';
 
 sub got_arg {
@@ -27,40 +32,38 @@ sub got_arg {
     is $ARGV{$key}, $val, "Got expected value for $key";
 }
 
-is keys %ARGV, 19 => 'Right number of args returned';
+is keys %ARGV, 18 => 'Right number of args returned';
 
-got_arg 'i'       => $INFILE;
-got_arg 'infile'  => $INFILE;
+got_arg -i       => $INFILE;
+got_arg -infile  => $INFILE;
 
-got_arg 'l'       => $LEN;
-got_arg 'len'     => $LEN;
-got_arg 'length'  => $LEN;
-got_arg 'lgth'    => $LEN;
+got_arg -l       => $LEN;
+got_arg -len     => $LEN;
+got_arg -length  => $LEN;
+got_arg -lgth    => $LEN;
 
-got_arg 'girth'   => 42;
+got_arg -girth   => 42;
 
-got_arg 'o'       => $OUTFILE;
-got_arg 'ofile'   => $OUTFILE;
-got_arg 'out'     => $OUTFILE;
-got_arg 'outfile' => $OUTFILE;
+got_arg -o       => $OUTFILE;
+got_arg -ofile   => $OUTFILE;
+got_arg -out     => $OUTFILE;
+got_arg -outfile => $OUTFILE;
 
-got_arg 'v'       => 1,
-got_arg 'verbose' => 1,
+got_arg -v       => 1,
+got_arg -verbose => 1,
 
-got_arg 'no'       => 1;
-got_arg 'no_fudge' => 1;
-
-is ref $ARGV{'timeout'}, 'HASH'     => 'Hash reference returned for timeout';
-is $ARGV{'timeout'}{min}, $TIMEOUT  => 'Got expected value for timeout <min>';
-is $ARGV{'timeout'}{max}, -1        => 'Got default value for timeout <max>';
+is ref $ARGV{'--timeout'}, 'HASH'     => 'Hash reference returned for timeout';
+is $ARGV{'--timeout'}{min}, $TIMEOUT  => 'Got expected value for timeout <min>';
+is $ARGV{'--timeout'}{max}, -1        => 'Got default value for timeout <max>';
 
 is ref $ARGV{size}, 'HASH'      => 'Hash reference returned for size';
 is $ARGV{size}{h}, $H           => 'Got expected value for size <h>';
 is $ARGV{size}{w}, $W           => 'Got expected value for size <w>';
 
-is $ARGV{w}, 's p a c e s'      => 'Handled spaces correctly';
+is $ARGV{'--with'}, 's p a c e s'      => 'Handled spaces correctly';
+is $ARGV{-w},       's p a c e s'      => 'Handled alternation correctly';
 
-is $ARGV{step}, 7      => 'Handled step size correctly';
+is $ARGV{'<step>'}, 7      => 'Handled step size correctly';
 
 __END__
 
@@ -80,7 +83,7 @@ This documentation refers to orchestrate version 1.9.4
 
 =over
 
-=item  -i[nfile]  [=]<file>    
+=item  -i[nfile]  [=]E<lt>fileE<gt>    
 
 Specify input file
 
@@ -88,7 +91,7 @@ Specify input file
     file.type:    readable
     file.default: '-'
 
-=item  -o[ut][file]= <out_file>    
+=item  -o[ut][file]= E<lt>out_fileE<gt>    
 
 Specify output file
 
@@ -102,11 +105,11 @@ Specify output file
 
 =over
 
-=item  size <h>x<w>
+=item  size E<lt>hE<gt>xE<lt>wE<gt>
 
 Specify height and width
 
-=item  -l[[en][gth]] <l>
+=item  -l[[en][gth]] E<lt>lE<gt>
 
 Display length [default: 24 ]
 
@@ -114,7 +117,7 @@ Display length [default: 24 ]
     l.type:    int > 0
     l.default: 24
 
-=item  -girth <g>
+=item  -girth E<lt>gE<gt>
 
 Display girth [default: 42 ]
 
@@ -125,27 +128,23 @@ Display girth [default: 42 ]
 
 Print all warnings
 
-=item [-]-timeout [<min>] [<max>]
+=item --timeout [E<lt>minE<gt>] [E<lt>maxE<gt>]
 
 =for Euclid:
     min.type: int
     max.type: int
     max.default: -1
 
-=item -w <space>
+=item -w E<lt>spaceE<gt> | --with E<lt>spaceE<gt>
 
 Test something spaced
 
-=item [-]-no[-fudge]
-
-Automaticaly fudge the factors.
-
-=for Euclid:
-    false: [-]-no[-fudge]
-
-=item <step>
+=item E<lt>stepE<gt>
 
 Step size
+
+=for Euclid:
+    step.type: int, lucky(step)
 
 =item --version
 

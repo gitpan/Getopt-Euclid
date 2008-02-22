@@ -1,6 +1,7 @@
 BEGIN {
     @ARGV = (
         "-h=hostname1234",
+        "-dim=3,4",
     );
 }
 
@@ -15,6 +16,7 @@ sub got_arg {
 
 is $ARGV{'-h'}{dev},  'hostname'  => 'Got expected value for -h <dev>';
 is $ARGV{'-h'}{port}, 1234        => 'Got expected value for -h <port>';
+is $ARGV{'-dim'}, '3,4'           => 'Got expected value for -dim';
 
 __END__
 
@@ -39,8 +41,13 @@ This documentation refers to orchestrate version 1.9.4
 Specify device/port
 
 =for Euclid:
-    dev.type:    /[^:]+\D/
+    dev.type:    /[^:\s\d]+\D/
     port.type:   /\d+/
+
+=item  -dim=<dim>
+
+=for Euclid:
+    dim.type:    /\d+,\d+/
 
 =back
 

@@ -13,7 +13,7 @@ BEGIN {
         "size ${H}x${W}",
         '-v',
         "--timeout $TIMEOUT",
-        '-w', 's p a c e s',
+        '--with', 's p a c e s',
         7,
     );
 }
@@ -32,7 +32,7 @@ sub got_arg {
     is $ARGV{$key}, $val, "Got expected value for $key";
 }
 
-is keys %ARGV, 17 => 'Right number of args returned';
+is keys %ARGV, 18 => 'Right number of args returned';
 
 got_arg -i       => $INFILE;
 got_arg -infile  => $INFILE;
@@ -60,7 +60,8 @@ is ref $ARGV{size}, 'HASH'      => 'Hash reference returned for size';
 is $ARGV{size}{h}, $H           => 'Got expected value for size <h>';
 is $ARGV{size}{w}, $W           => 'Got expected value for size <w>';
 
-is $ARGV{-w}, 's p a c e s'      => 'Handled spaces correctly';
+is $ARGV{'--with'}, 's p a c e s'      => 'Handled spaces correctly';
+is $ARGV{-w},       's p a c e s'      => 'Handled alternation correctly';
 
 is $ARGV{'<step>'}, 7      => 'Handled step size correctly';
 
@@ -134,7 +135,7 @@ Print all warnings
     max.type: int
     max.default: -1
 
-=item -w <space>
+=item -w <space> | --with <space>
 
 Test something spaced
 

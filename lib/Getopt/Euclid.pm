@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.1.0');
+use version; $VERSION = qv('0.2.0');
 
 use warnings;
 use strict;
@@ -80,6 +80,10 @@ sub import {
         or croak "Getopt::Euclid was unable to access POD\n($!)\nProblem was";
     my $source = do{ local $/; <$fh>};
 
+    # Clean up significant entities...
+    $source =~ s{ E<lt> }{<}gxms;
+    $source =~ s{ E<gt> }{>}gxms;
+
     # Set up parsing rules...
     my $HWS      = qr{ [^\S\n]*      }xms;
     my $EOHEAD   = qr{ (?= ^=head1 | \z)  }xms;
@@ -115,7 +119,11 @@ sub import {
     my ($prog_name)     = (splitpath($0))[-1];
 
     my ($version)
-        = $pod =~ m/^=head1 $VERS     .*? (\d+(?:[._]\d+)+) .*? $EOHEAD /xms;
+        = $pod =~ m/^=head1 $VERS .*? (\d+(?:[._]\d+)+) .*? $EOHEAD /xms;
+    if ( !defined $version ) {
+        $version = $main::VERSION;
+    }
+
 
     my ($opt_name, $options)
         = $pod =~ m/^=head1 ($OPTIONS)  (.*?) $EOHEAD /xms;
@@ -259,7 +267,7 @@ sub import {
             }
             elsif ($field eq 'type') {
                 my ($matchtype, $comma, $constraint)
-                    = $val =~ m/([^,\s]+)\s*(?:(,))?\s*(.*)/xms;
+                    = $val =~ m{(/(?:\.|.)+/ | [^,\s]+)\s*(?:(,))?\s*(.*)}xms;
                 $arg->{var}{$var}{type} = $matchtype;
 
                 if ($comma && length $constraint) {
@@ -364,7 +372,7 @@ sub import {
         $msg =~ tr/\0\1/ \t/;
         $msg =~ s/\n?\z/\n/xms;
         warn "$msg(Try: $prog_name --help)\n\n";
-        exit;
+        exit 2;   # Traditional "bad arg list" value
     };
 
     # Run matcher...
@@ -394,7 +402,9 @@ sub import {
 
     _verify_args($all_args_ref);
 
-    # Clean up %ARGV...
+    # Clean up @ARGV and %ARGV...
+
+    @ARGV = ();   # Everything must have been parsed, so nothign left
 
     for my $arg_name (keys %ARGV) {
         # Flatten non-repeatables...
@@ -671,7 +681,9 @@ sub _convert_to_regex {
         my $regex = $arg_name;
 
         # Quotemeta specials...
-        $regex =~ s{([@#$^*()+{}?|])}{\\$1}gxms;
+        $regex =~ s{([@#$^*()+{}?])}{\\$1}gxms;
+
+        $regex = "(?:$regex)";
 
         # Convert optionals...
         1 while $regex =~ s/ \[ ([^]]*) \] /(?:$1)?/gxms;
@@ -743,8 +755,20 @@ sub _print_and_exit {
     exit;
 }
 
+my $OPTIONAL;
+
+BEGIN {
+   $OPTIONAL = qr{ \[ [^[]* (?: (??{$OPTIONAL}) [^[]* )* \] }xms;
+}
+
 sub _get_variants {
-    my @arg_desc = @_;
+    my @arg_desc = shift =~ m{ [^[|]+ (?: $OPTIONAL [^[|]* )* }gmxs;
+
+    for (@arg_desc) {
+        s{^ \s+ | \s+ $}{}gxms;
+    }
+
+    $DB::single = 1;
 
     # Only consider first "word"...
     return $1 if $arg_desc[0] =~ m/\A (< [^>]+ >)/xms;
@@ -760,11 +784,11 @@ sub _get_variants {
         if ($arg_desc_without =~ s/ \[ [^][]* \] //xms) {
             push @arg_desc, $arg_desc_without;
         }
-        if ($arg_desc_with =~ m/ \[ ([^][]*) \] /xms) {
+        if ($arg_desc_with =~ m/ [[(] ([^][()]*) [])] /xms) {
             my $option = $1;
             for my $alternative ( split /\|/, $option ) {
                 my $arg_desc = $arg_desc_with;
-                $arg_desc =~ s{\[ ([^][]*) \]}{$alternative}xms;
+                $arg_desc =~ s{[[(] [^][()]* [])]}{$alternative}xms;
                 push @arg_desc, $arg_desc;
             }
         }
@@ -803,7 +827,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.1.0
+This document describes Getopt::Euclid version 0.2.0
 
 
 =head1 SYNOPSIS
@@ -936,7 +960,7 @@ build a parser that parses the arguments and options the POD specifies,
 
 =item 4.
 
-parse the contents of C<@ARGV> using that parser, and
+remove the command-line arguments from C<@ARGV> and parse them, and
 
 =item 5.
 
@@ -1109,14 +1133,13 @@ Any whitespace in the structure specifies that any amount of whitespace
 
 =item *
 
-A vertical bar within an optional component indicates an alternative.
-Note that such vertical bars may only appear within square brackets.
+A vertical bar indicates the start of an alternative variant of the argument.
 
 =back
 
 For example, the argument specification:
 
-    =item -i[n] [=] <file>
+    =item -i[n] [=] <file> | --from <file>
 
 indicates that any of the following may appear on the command-line:
 
@@ -1124,10 +1147,17 @@ indicates that any of the following may appear on the command-line:
                                      
     -indata.txt   -in data.txt   -in=data.txt   -in = data.txt
 
+    --from data.text
+
 as well as any other combination of whitespacing.
 
-Any of the above variations would cause both C<$ARGV{'-i'}> and C<$ARGV{'-
-in'}> to be set to the string C<'data.txt'>.
+Any of the above variations would cause all three of:
+
+    $ARGV{'-i'}
+    $ARGV{'-in'}
+    $ARGV{'--from'}
+    
+to be set to the string C<'data.txt'>.
 
 You could allow the optional C<=> to also be an optional colon by specifying:
 
@@ -1757,7 +1787,7 @@ The following diagnostics are caused by problems in parsing the command-line
 
 =item Missing required argument(s): %s
 
-One or more arguments specified in the C<REQUIRED ARGUMENTS> POD section
+At least one argument specified in the C<REQUIRED ARGUMENTS> POD section
 wasn't present on the command-line.
 
 
@@ -1771,7 +1801,8 @@ was of the wrong type.
 =item Unknown argument: %s
 
 Getopt::Euclid didn't recognize an argument you were trying to specify on the
-command-line. This is often caused by command-line typos.
+command-line. This is often caused by command-line typos or an incomplete
+interface specification.
 
 =back
 

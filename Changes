@@ -83,3 +83,18 @@ Revision history for Getopt-Euclid
 
     - Repatched :vars<opt_> mode to really export all args
       (thanks again Tim!)
+
+
+0.2.0  Sat Aug  4 17:22:31 2007
+
+    - Added fallback to $main::VERSION if version not specified in Pod
+      (thanks Todd and Thomas)
+
+    - Added non-zero exit value on bad arg list (thanks Toby)
+
+    - Changed module behaviour: now removes identified arguments from @ARGV.
+      on successful match (thanks Aran and Tim)
+
+    - Allowed alternations everywhere (i.e. outside optionals too)
+
+    - Allowed E<lt> and E<gt> in option specifiers (thanks Wes)
