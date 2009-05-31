@@ -98,3 +98,14 @@ Revision history for Getopt-Euclid
     - Allowed alternations everywhere (i.e. outside optionals too)
 
     - Allowed E<lt> and E<gt> in option specifiers (thanks Wes)
+
+0.2.1  Sun May 31 12:57:07 2009
+
+    - Removed BEGIN blocks and simply brought the defined variables to the top
+      of the module (thanks Todd)
+
+    - Update POD to make sure people don't "use Getopt::Euclid ();"
+
+    - Removed debugger break point (thanks Diab)
+
+    - Removed no bugs claim in POD
