@@ -3,8 +3,7 @@ Changes
 lib/Getopt/Euclid.pm
 lib/Getopt/Euclid/HierDemo.pm
 Makefile.PL
-MANIFEST
-META.yml			# Will be created by "make dist"
+MANIFEST			This list of files
 README
 t/00.load.t
 t/bundle.t
@@ -33,6 +32,7 @@ t/hier_export.t
 t/minimal.t
 t/pod-coverage.t
 t/pod.t
+t/pod_cmd_after_cut.t
 t/quoted_args.t
 t/regex_type.t
 t/repeatable.t
@@ -40,3 +40,4 @@ t/repeated.t
 t/simple.t
 t/simple_shuffle.t
 t/vars_export.t
+META.yml

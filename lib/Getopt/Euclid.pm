@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.2.1');
+use version; $VERSION = qv('0.2.2');
 
 use warnings;
 use strict;
@@ -93,6 +93,9 @@ sub Getopt::Euclid::Importer::DESTROY {
       '.pm file cannot define an explicit import() when using Getopt::Euclid';
 }
 
+# Central variable to store script version for ticket #55259
+our $SCRIPT_VERSION;
+
 sub import {
     shift @_;
     my $minimal_keys;
@@ -137,6 +140,9 @@ sub import {
       or croak "Getopt::Euclid was unable to access POD\n($!)\nProblem was";
     my $source = do { local $/; <$fh> };
 
+    # Clean up line delimeters
+    s{ [\n\r] }{\n}gx foreach ( $source, @std_POD );
+
     # Clean up significant entities...
     $source =~ s{ E<lt> }{<}gxms;
     $source =~ s{ E<gt> }{>}gxms;
@@ -144,8 +150,8 @@ sub import {
     # Set up parsing rules...
     my $HWS     = qr{ [^\S\n]*      }xms;
     my $EOHEAD  = qr{ (?= ^=head1 | \z)  }xms;
-    my $POD_CMD = qr{ \n\n = [^\W\d]\w+ [^\n]* \n\n}xms;
-    my $POD_CUT = qr{ \n\n = cut $HWS \n\n}xms;
+    my $POD_CMD = qr{            = [^\W\d]\w+ [^\n]* (?= \n\n )}xms;
+    my $POD_CUT = qr{ (?! \n\n ) = cut $HWS          (?= \n\n )}xms;
 
     my $NAME  = qr{ $HWS NAME    $HWS \n }xms;
     my $VERS  = qr{ $HWS VERSION $HWS \n }xms;
@@ -169,15 +175,16 @@ sub import {
 
     # Extract POD alone...
     my @chunks = $source =~ m{ $POD_CMD .*? (?: $POD_CUT | \z ) }gxms;
-    my $pod = join q{}, @chunks;
+    my $pod = join "\n\n", @chunks;
 
     # Extract essential interface components...
     my ($prog_name) = ( splitpath($0) )[-1];
 
-    my ($version) =
+    # Extract version info
+    ($SCRIPT_VERSION) =
       $pod =~ m/^=head1 $VERS .*? (\d+(?:[._]\d+)+) .*? $EOHEAD /xms;
-    if ( !defined $version ) {
-        $version = $main::VERSION;
+    if ( !defined $SCRIPT_VERSION ) {
+        $SCRIPT_VERSION = $main::VERSION;
     }
 
     my ( $opt_name, $options ) =
@@ -344,14 +351,14 @@ m/^=head1 [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $EOHEAD /xms
     $arg_summary .= lc " [$opt_name]" if $opt_name;
     $arg_summary =~ s/\s+/ /gxms;
 
-    $pod =~ s{ ^(=head1 $NAME \s*) .*? (- .*) $EOHEAD }
-            {$1 $prog_name $2}xms;
+    $pod =~ s{ ^(=head1 $NAME \s*) .*? (- .*)? $EOHEAD }
+            {join(' ', $1, $prog_name, $2 || ())}xems;
 
     $pod =~ s{ ^(=head1 $USAGE \s*) .*? (\s*) $EOHEAD }
             {$1 $prog_name $arg_summary $2}xms;
 
     $pod =~ s{ ^(=head1 $VERS    \s*) .*? (\s*) $EOHEAD }
-            {$1 This document refers to $prog_name version $version $2}xms;
+            {$1 This document refers to $prog_name version $SCRIPT_VERSION $2}xms;
 
     # Handle standard args...
     if ( grep { / --man /xms } @ARGV ) {
@@ -370,7 +377,7 @@ m/^=head1 [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $EOHEAD /xms
         _print_and_exit($pod);
     }
     elsif ( first { $_ eq '--version' } @ARGV ) {
-        print "This is $prog_name version $version\n";
+        print "This is $prog_name version $SCRIPT_VERSION\n";
         if ($licence) {
             print "\n$licence\n";
         }
@@ -670,6 +677,8 @@ sub _verify_args {
                               )
                               if $arg_vars->{$var}{constraint}
                                   && !$arg_vars->{$var}{constraint}->($val);
+                            $entry->{$var} = ''
+                              unless defined( $ARGV{$arg_name} );
                         }
                         next VAR;
                     }
@@ -833,7 +842,6 @@ sub _export_var {
 }
 
 1;                                 # Magic true value required at end of module
-__END__
 
 =head1 NAME
 
@@ -841,7 +849,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.2.1
+This document describes Getopt::Euclid version 0.2.2
 
 =head1 SYNOPSIS
 
@@ -1073,7 +1081,14 @@ or:
     =head1 VERSION
     
     This is alpha release 1.2_34
-    
+
+You may also specify the version number in your code. However, in order for
+Getopt::Euclid to properly read it, it must be in a C<BEGIN> block:
+
+    BEGIN { use version; our $VERSION = qv('1.2.3') }
+    use Getopt::Euclid;
+
+Euclid stores the version as C<$Getopt::Euclid::SCRIPT_VERSION>.
 
 =item =head1 REQUIRED ARGUMENTS
 
@@ -1207,7 +1222,7 @@ more than once, using the C<repeatable> option:
         repeatable
 
 When an argument is marked repeatable the corresponding entry of C<%ARGV> will
-not contain a sigle value, but rather an array reference. If the argument also
+not contain a single value, but rather an array reference. If the argument also
 has L<Multiple placeholders>, then the corresponding entry in C<%ARGV> will be
 an array reference with each array entry being a hash reference.
 
@@ -1849,7 +1864,7 @@ L<http://rt.cpan.org>.
 
 Damian Conway  C<< <DCONWAY@cpan.org> >>
 
-Kevin Galinsky
+Kevin Galinsky C<< <kgalinsky+cpan at gmail.com> >>
 
 =head1 LICENCE AND COPYRIGHT
 

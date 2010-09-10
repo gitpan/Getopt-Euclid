@@ -1,25 +1,26 @@
---- #YAML:1.0
-name:               Getopt-Euclid
-version:            0.2.1
-abstract:           Executable Uniform Command-Line Interface Descriptions
+---
+abstract: 'Executable Uniform Command-Line Interface Descriptions'
 author:
-    - Damian Conway <DCONWAY@cpan.org>
-license:            unknown
-distribution_type:  module
+  - 'Damian Conway <DCONWAY@cpan.org>'
 configure_requires:
-    ExtUtils::MakeMaker:  0
-build_requires:
-    ExtUtils::MakeMaker:  0
-requires:
-    File::Spec::Functions:  0
-    List::Util:           0
-    Test::More:           0
-    version:              0
-no_index:
-    directory:
-        - t
-        - inc
-generated_by:       ExtUtils::MakeMaker version 6.50
+  Module::Build: 0.36
+generated_by: 'Module::Build version 0.3607'
+license: perl
 meta-spec:
-    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
-    version:  1.4
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Getopt-Euclid
+provides:
+  Getopt::Euclid:
+    file: lib/Getopt/Euclid.pm
+    version: v0.2.2
+  Getopt::Euclid::HierDemo:
+    file: lib/Getopt/Euclid/HierDemo.pm
+requires:
+  File::Spec::Functions: 0
+  List::Util: 0
+  Test::More: 0
+  version: 0
+resources:
+  license: http://dev.perl.org/licenses/
+version: v0.2.2
