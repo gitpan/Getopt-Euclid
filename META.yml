@@ -13,7 +13,7 @@ name: Getopt-Euclid
 provides:
   Getopt::Euclid:
     file: lib/Getopt/Euclid.pm
-    version: v0.2.2
+    version: v0.2.3
   Getopt::Euclid::HierDemo:
     file: lib/Getopt/Euclid/HierDemo.pm
 requires:
@@ -23,4 +23,4 @@ requires:
   version: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: v0.2.2
+version: v0.2.3
