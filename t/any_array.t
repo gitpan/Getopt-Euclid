@@ -1,35 +1,33 @@
-#! /usr/bin/env perl
-# The shebang line above is part of the test
-
 BEGIN {
-    $INFILE  = $0;
-    $OUTFILE = $0;
     $LEN     = 42;
     $H       = 2;
     $W       = -10;
     $TIMEOUT = 7;
 
     @ARGV = (
-        "-i   $INFILE",
-        "-out=", $OUTFILE,
         "-lgth $LEN",
         "size ${H}x${W}",
         '-v',
         "--timeout $TIMEOUT",
     );
 
+    @args = @ARGV;
+
     chmod 0644, $0;
 }
 
-use Getopt::Euclid::HierDemo;
 use Test::More 'no_plan';
+use Getopt::Euclid;
 
 sub got_arg {
     my ($key, $val) = @_;
     is $ARGV{$key}, $val, "Got expected value for $key";
 }
 
-is keys %ARGV, 14 => 'Right number of args returned';
+# Let's parse an array of arguments instead of @ARGV and repeat the same tests
+Getopt::Euclid->process_args(\@args);
+
+is keys %ARGV, 8 => 'Right number of args returned';
 
 got_arg -i       => $INFILE;
 got_arg -infile  => $INFILE;
@@ -54,89 +52,6 @@ ok !defined $ARGV{'--timeout'}{max}   => 'Got expected value for timeout <max>';
 is ref $ARGV{size}, 'HASH'      => 'Hash reference returned for size';
 is $ARGV{size}{h}, $H           => 'Got expected value for size <h>';
 is $ARGV{size}{w}, $W           => 'Got expected value for size <w>';
-
-# Manual should contain POD from .pl and .pm files
-my $man = '=head1 NAME
-
- hier.t - Convert a file to Melkor\'s .orc format
-
-=head1 VERSION
-
- This document refers to hier.t version 1.9.4 
-
-=head1 USAGE
-
-     hier.t -o= <file> -i <file> [options] 
-
-=head1 OPTIONS
-
-=over
-
-=item size <h>x<w>
-
-Specify height and width
-
-=item -l[[en][gth]] <l>
-
-Display length [default: 24 ]
-
-=item -v[erbose]
-
-Print all warnings
-
-=item --timeout [<min>] [<max>]
-
-=item --version
-
-=item --usage
-
-=item --help
-
-=item --man
-
-Print the usual program information
-
-=back
-
-
-
-=head1 AUTHOR
-
-Damian Conway (damian@conway.org)
-
-=head1 BUGS
-
-There are undoubtedly serious bugs lurking somewhere in this code.
-Bug reports and other feedback are most welcome.
-
-=head1 COPYRIGHT
-
-Copyright (c) 2002, Damian Conway. All Rights Reserved.
-This module is free software. It may be used, redistributed
-and/or modified under the terms of the Perl Artistic License
-  (see http://www.perl.com/perl/misc/Artistic.html)
-
-=cut
-
-=head1 REQUIRED ARGUMENTS
-
-=over
-
-=item -i[nfile]  [=]<file>
-
-Specify input file
-
-=item -o[ut][file]= <file>
-
-Specify output file
-
-=back
-
-
-';
-
-my $man_test = Getopt::Euclid->man();
-is $man_test, $man, 'Man page is as expected';
 
 __END__
 

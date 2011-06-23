@@ -1,21 +1,45 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.2.3');
+use version; $VERSION = qv('0.2.4');
 
 use warnings;
 use strict;
 use Carp;
-use File::Spec::Functions qw(splitpath);
+use File::Spec::Functions qw(splitpath catpath);
 use List::Util qw( first );
+use Text::Balanced qw(extract_bracketed extract_multiple);
+
+# Set some module variables
+my $has_run;
+my @pm_pods;
+my $minimal_keys;
+my $vars_prefix;
+my $defer;
+my $matcher;
+my %requireds_hash;
+my %options_hash;
+my %long_names_hash;
+my $man;     # --man     message
+my $help;    # --help    message
+my $usage;   # --usage   message
+my $version; # --version message
+
+# Global variables
+our $SCRIPT_NAME;
+our $SCRIPT_VERSION; # for ticket # 55259
+
+# END { $has_run = 1 }
+
+my $OPTIONAL;
+$OPTIONAL = qr{ \[ [^[]* (?: (??{$OPTIONAL}) [^[]* )* \] }xms;
 
 # Convert arg specification syntax to Perl regex syntax
 
 my %STD_MATCHER_FOR = (
-    integer => '[+-]?\\d+',
+    integer => '[+-]?\\d+(?:[eE][+]?\d+)?',
     number  => '[+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\d+)?',
     input   => '\S+',
     output  => '\S+',
-    file    => '\S+',
     string  => '\S+',
     q{}     => '\S+',
 );
@@ -37,10 +61,10 @@ my %STD_CONSTRAINT_FOR = (
     'number'    => sub { 1 },            # Always okay (matcher ensures this)
     '+number'   => sub { $_[0] > 0 },
     '0+number'  => sub { $_[0] >= 0 },
-    'input' => sub { $_[0] eq '-' || -r $_[0] },
-    'output' => sub {
-        my ( undef, $dir ) = splitpath( $_[0] );
-        $dir ||= '.';
+    'input'     => sub { $_[0] eq '-' || -r $_[0] },
+    'output'    => sub {
+        my ( $vol, $dir ) = splitpath( $_[0] );
+        $dir = ($vol && $dir) ? catpath($vol, $dir) : '.';
         $_[0] eq '-' ? 1 : -e $_[0] ? -w $_[0] : -w $dir;
     },
 );
@@ -58,34 +82,6 @@ _make_equivalent(
     'output'    => [qw( out writable writeable )],
 );
 
-my $OPTIONAL;
-$OPTIONAL = qr{ \[ [^[]* (?: (??{$OPTIONAL}) [^[]* )* \] }xms;
-
-# Utility sub to factor out hash key aliasing...
-sub _make_equivalent {
-    my ( $hash_ref, %alias_hash ) = @_;
-
-    while ( my ( $name, $aliases ) = each %alias_hash ) {
-        foreach my $alias (@$aliases) {
-            $hash_ref->{$alias} = $hash_ref->{$name};
-        }
-    }
-
-    return;
-}
-
-# Report problems in specification...
-
-sub _fail {
-    my (@msg) = @_;
-    die "Getopt::Euclid: @msg\n";
-}
-
-my $has_run;
-my @std_POD;
-
-# Looks unneeded -Kevin
-# END { $has_run = 1 }
 
 sub Getopt::Euclid::Importer::DESTROY {
     return if $has_run || $^C;    # No errors when only compiling
@@ -93,59 +89,228 @@ sub Getopt::Euclid::Importer::DESTROY {
       '.pm file cannot define an explicit import() when using Getopt::Euclid';
 }
 
-# Central variable to store script version for ticket #55259
-our $SCRIPT_VERSION;
 
 sub import {
     shift @_;
-    my $minimal_keys;
-    my $vars_prefix;
     @_ = grep { !( /:minimal_keys/ and $minimal_keys = 1 ) } @_;
     @_ = grep { !( /:vars(?:<(\w+)>)?/ and $vars_prefix = $1 || "ARGV_" ) } @_;
+    @_ = grep { !( /:defer/ and $defer = 1 ) } @_;
     croak "Unknown mode ('$_')" for @_;
 
+    # No POD parsing and argument processing in Perl compile mode (ticket 34195)
+    return if $^C;
+
+    # Parse POD of caller program and its modules
+    return unless _process_pod();
+
+    # Parse and export arguments 
+    Getopt::Euclid->process_args( \@ARGV ) unless $defer;
+
+}
+
+
+sub man {
+    shift @_;
+    return $man;
+}
+
+
+sub usage {
+    shift @_;
+    return $usage;
+}
+
+
+sub help {
+    shift @_;
+    return $help;
+}
+
+
+sub version {
+    shift @_;
+    return $version;
+}
+
+
+sub process_args {
+    # Take a reference to an array of arguments (\@ARGV or other), parse the
+    # arguments, and populate %ARGV (or export specific variable names)
+    my ($self, $args) = @_;
+
+    %ARGV = ();
+
+    # Handle standard args...
+
+    if ( grep { / --man /xms } @$args ) {
+        _print_pod( Getopt::Euclid->man() , 'paged' );
+        exit;
+    }
+    elsif ( first { $_ eq '--usage' } @$args ) {
+        print Getopt::Euclid->usage();
+        exit;
+    }
+    elsif ( first { $_ eq '--help' } @$args ) {
+        _print_pod( Getopt::Euclid->help() );
+        exit;
+    }
+    elsif ( first { $_ eq '--version' } @$args ) {
+        print Getopt::Euclid->version();
+        exit;
+    }
+
+    # Report problems in parsing...
+    *_bad_arglist = sub {
+        my (@msg) = @_;
+        my $msg = join q{}, @msg;
+        $msg =~ tr/\0\1/ \t/;
+        $msg =~ s/\n?\z/\n/xms;
+        warn "$msg(Try: $SCRIPT_NAME --help)\n\n";
+        exit 2;    # Traditional "bad arg list" value
+    };
+
+    # Run matcher...
+    my $all_args_ref = { %options_hash, %requireds_hash };
+    my $argv = 
+      join( q{ }, map { my $arg = $_; $arg =~ tr/ \t/\0\1/; $arg } @$args );
+    if ( my $error = _doesnt_match( $matcher, $argv, $all_args_ref ) ) {
+        _bad_arglist($error);
+    }
+
+    # Check all requireds have been found...
+    my @missing;
+    for my $req ( keys %requireds_hash ) {
+        push @missing, "\t$req\n" if !exists $ARGV{$req};
+    }
+    _bad_arglist(
+        'Missing required argument',
+        ( @missing == 1 ? q{} : q{s} ),
+        ":\n", @missing
+    ) if @missing;
+
+    # Back-translate \0-quoted spaces and \1-quoted tabs...
+
+    _rectify_args();
+
+    # Check exclusive variables, variable constraints and fill in defaults...
+
+    _verify_args($all_args_ref);
+
+    # Clean up @$args ... everything must have been parsed, so nothing left
+
+    @$args = ();
+
+    # Clean up %ARGV
+
+    for my $arg_name ( keys %ARGV ) {
+
+        # Flatten non-repeatables...
+
+        my $vals = delete $ARGV{$arg_name};
+
+        my $repeatable = $all_args_ref->{$arg_name}{is_repeatable};
+
+        if ($repeatable) {
+            pop @{$vals};
+        }
+
+        for my $val ( @{$vals} ) {
+            my $var_count = keys %{$val};
+            $val = $var_count == 0
+              ? 1    # Boolean -> true
+              : $var_count == 1
+              ? ( values %{$val} )[0]    # Single var -> var's val
+              : $val                     # Otherwise keep hash
+              ;
+            my $false_vals = $all_args_ref->{$arg_name}{false_vals};
+            my @variants   = _get_variants($arg_name);
+            my %vars_opt_vals;
+
+            for my $arg_flag (@variants) {
+                my $variant_val = $val;
+                if ( $false_vals && $arg_flag =~ m{\A $false_vals \z}xms ) {
+                    $variant_val = $variant_val ? 0 : 1;
+                }
+
+                if ($repeatable) {
+                    push @{ $ARGV{$arg_flag} }, $variant_val;
+                }
+                else {
+                    $ARGV{$arg_flag} = $variant_val;
+                }
+                $vars_opt_vals{$arg_flag} = $ARGV{$arg_flag} if $vars_prefix;
+            }
+
+            if ($vars_prefix) {
+                _minimize_entries_of( \%vars_opt_vals );
+                my $maximal = _longestname( keys %vars_opt_vals );
+                _export_var( $vars_prefix, $maximal, $vars_opt_vals{$maximal} );
+                delete $long_names_hash{$maximal};
+            }
+        }
+    }
+
+    if ($vars_prefix) {
+
+        # export any unspecified options to keep use strict happy
+        for my $opt_name ( keys %long_names_hash ) {
+            my $arg_name = $long_names_hash{$opt_name};
+            my $arg_info = $all_args_ref->{$arg_name};
+            my $val;
+            $val = [] if $arg_info->{is_repeatable} or $arg_name =~ />\.\.\./;
+            $val = {} if keys %{ $arg_info->{var} } > 1;
+            _export_var( $vars_prefix, $opt_name, $val );
+        }
+    }
+
+    if ($minimal_keys) {
+        _minimize_entries_of( \%ARGV );
+    }
+
+}
+
+# ###### Utility subs #############
+
+# Recursively remove decorations on %ARGV keys
+
+sub AUTOLOAD {
+    our $AUTOLOAD;
+    $AUTOLOAD =~ s{.*::}{main::}xms;
+    no strict 'refs';
+    goto &$AUTOLOAD;
+}
+
+
+sub _process_pod {
+    # Parse the POD of the caller program and its modules.
+    my @caller = caller(1);
+
+    # Sanity check
     if ($has_run) {
         carp "Getopt::Euclid loaded a second time";
         warn "Second attempt to parse command-line was ignored\n";
-        return;
+        return 0;
     }
 
     # Handle calls from .pm files...
-    my @caller = caller;
     if ( $caller[1] =~ m/[.]pm \z/xms ) {
-
-        # Save module's POD...
-        open my $fh, '<', $caller[1]
-          or croak "Getopt::Euclid was unable to access POD\n($!)\nProblem was";
-        push @std_POD, do { local $/; <$fh> };
-
-        # Install this import() sub as module's import sub...
-        no strict 'refs';
-        croak
-'.pm file cannot define an explicit import() when using Getopt::Euclid'
-          if *{"$caller[0]::import"}{CODE};
-
-        my $lambda;    # Needed so the anon sub is generated at run-time
-        *{"$caller[0]::import"}
-          = bless sub { $lambda = 1; goto &Getopt::Euclid::import },
-          'Getopt::Euclid::Importer';
-
-        return;
+        _process_pm_pod();
+        return 0;
     }
 
+    # Process POD of caller program
+    _process_prog_pod();
     $has_run = 1;
 
+    return 1;
+}
+
+
+sub _process_prog_pod {
     # Acquire POD source...
     open my $fh, '<', $0
       or croak "Getopt::Euclid was unable to access POD\n($!)\nProblem was";
     my $source = do { local $/; <$fh> };
-
-    # Clean up line delimeters
-    s{ [\n\r] }{\n}gx foreach ( $source, @std_POD );
-
-    # Clean up significant entities...
-    $source =~ s{ E<lt> }{<}gxms;
-    $source =~ s{ E<gt> }{>}gxms;
 
     # Set up parsing rules...
     my $HWS     = qr{ [^\S\n]*      }xms;
@@ -173,103 +338,196 @@ sub import {
                         )
                     }xms;
 
-    # Extract POD alone...
-    my @chunks = $source =~ m{ $POD_CMD .*? (?: $POD_CUT | \z ) }gxms;
-    my $pod = join "\n\n", @chunks;
+    my @pod_array = ();
+    for my $pod ( $source, reverse @pm_pods ) {
 
-    # Extract essential interface components...
-    my ($prog_name) = ( splitpath($0) )[-1];
+        # Clean up line delimeters
+        $pod =~ s{ [\n\r] }{\n}gx;
 
-    # Extract version info
-    ($SCRIPT_VERSION) =
-      $pod =~ m/^=head1 $VERS .*? (\d+(?:[._]\d+)+) .*? $EOHEAD /xms;
+        # Clean up significant entities...
+        $pod =~ s{ E<lt> }{<}gxms;
+        $pod =~ s{ E<gt> }{>}gxms;
+
+        # Sanitize PODs by removing rogue strings that contain POD text
+        $pod =~ s{ <<(\S+).*? $POD_CMD .*? $POD_CMD .*? ^\1 }{<<$1;\n$1}gxms; # heredocs
+        $pod =~ s{ (['"`])    $POD_CMD .*? $POD_CMD .*?  \1 }{$1$1}gxms;      # quoted
+        $pod =~ s{ \(         $POD_CMD .*? $POD_CMD .*?  \) }{()}gxms;        # bracketed
+        $pod =~ s{ \{         $POD_CMD .*? $POD_CMD .*?  \} }{{}}gxms;
+        $pod =~ s{ \[         $POD_CMD .*? $POD_CMD .*?  \] }{[]}gxms;
+        $pod =~ s{ <          $POD_CMD .*? $POD_CMD .*?  >  }{<>}gxms;
+
+        # Extract POD alone...
+        $pod = join "\n\n", $pod =~ m{ $POD_CMD .*? (?: $POD_CUT | \z ) }gxms;      
+
+        # Append to man
+        push @pod_array, $pod if not $pod eq '';
+
+    }
+
+    $man = join("\n=cut\n\n", @pod_array);
+
+    # Put program name in man
+    ($SCRIPT_NAME) = ( splitpath($0) )[-1];
+    $man =~ s{ ^(=head1 $NAME \s*) .*? (- .*)? $EOHEAD }
+             {join(' ', $1, $SCRIPT_NAME, $2 || "\n\n" )}xems;
+
+    # Put version number in man
+    ($SCRIPT_VERSION) = 
+        $man =~ m/^=head1 $VERS .*? (\d+(?:[._]\d+)+) .*? $EOHEAD /xms;
     if ( !defined $SCRIPT_VERSION ) {
         $SCRIPT_VERSION = $main::VERSION;
     }
+    if ( !defined $SCRIPT_VERSION ) {
+        my $filedate = localtime((stat $0)[9]);
+        $SCRIPT_VERSION = $filedate;
+    }
+    $man =~ s{ ^(=head1 $VERS    \s*) .*? (\s*) $EOHEAD }
+             {$1 This document refers to $SCRIPT_NAME version $SCRIPT_VERSION $2}xms;
 
-    my ( $opt_name, $options ) =
-      $pod =~ m/^=head1 ($OPTIONS)  (.*?) $EOHEAD /xms;
-
-    my ( $req_name, $required ) =
-      $pod =~ m/^=head1 ($REQUIRED) (.*?) $EOHEAD /xms;
-
-    my ($licence) = $pod =~
-m/^=head1 [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $EOHEAD /xms;
-
-    # Extra info from higher-level pod...
-    for my $std_POD ( reverse @std_POD ) {
-        my ( undef, $more_options ) =
-          $std_POD =~ m/^=head1 ($OPTIONS)  (.*?) $EOHEAD /xms;
-        $options = ( $more_options || q{} ) . ( $options || q{} );
-
-        my ( undef, $more_required ) =
-          $std_POD =~ m/^=head1 ($REQUIRED) (.*?) $EOHEAD /xms;
+    # Extra info from PODs
+    my ($options, $opt_name, $required, $req_name, $licence);
+    while ($man =~ m/^=head1 ($REQUIRED) (.*?) $EOHEAD /gxms) {
+        # Required arguments
+        my ( $more_req_name, $more_required ) = ($1, $2);
+        $req_name = $more_req_name if not defined $req_name;
         $required = ( $more_required || q{} ) . ( $required || q{} );
-
-        my ($more_licence) = $std_POD =~
-m/^=head1 [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $EOHEAD /xms;
+    }
+    while ($man =~ m/^=head1 ($OPTIONS)  (.*?) $EOHEAD /gxms) {
+        # Optional arguments
+        my ( $more_opt_name, $more_options ) = ($1, $2);
+        $opt_name = $more_opt_name if not defined $opt_name;
+        $options = ( $more_options || q{} ) . ( $options || q{} );
+    }
+    while ($man =~ m/^=head1 [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $EOHEAD /gxms) {
+        # License information
+        my ($more_licence) = ($1, $2);
         $licence = ( $more_licence || q{} ) . ( $licence || q{} );
     }
 
     # Clean up interface titles...
-  NAME:
     for my $name ( $opt_name, $req_name ) {
-        next NAME if !defined $name;
+        next if !defined $name;
         $name =~ s{\A \s+ | \s+ \z}{}gxms;
     }
 
     # Extract the actual interface...
-    my @requireds = ( $required || q{} ) =~ m{ $EUCLID_ARG }gxms;
-    my @options   = ( $options  || q{} ) =~ m{ $EUCLID_ARG }gxms;
+    my %requireds;
+    my @requireds_order;
+    while ( ( $required || q{} ) =~ m{ $EUCLID_ARG }gxms ) {
+        push @requireds_order, $1;
+        $requireds{$1} = $2;
+    }
+    my %options;
+    my @options_order;
+    while ( ( $options  || q{} ) =~ m{ $EUCLID_ARG }gxms ) {
+        push @options_order, $1;
+        $options{$1} = $2;
+    }
 
     # Convert each arg entry to a hash...
-    my ( %requireds, %options );
-    my %long_names;
     my $seq_num = 0;
     my %seen;
-    while (@requireds) {
-        my ( $name, $spec ) = splice @requireds, 0, 2;
-        my @variants = _get_variants($name);
-        $requireds{$name} = {
-            seq      => $seq_num++,
-            src      => $spec,
-            name     => $name,
-            variants => \@variants,
-        };
-        if ($minimal_keys) {
-            my $minimal = _minimize_name($name);
-            croak "Internal error: minimalist mode caused arguments",
-              "'$name' and '$seen{$minimal}' to clash"
-              if $seen{$minimal};
-            $seen{$minimal} = $name;
+    for my $pair( [\%requireds, \%requireds_hash],
+                  [\%options, \%options_hash]      ) {
+        my ($spec, $storage) = @$pair;
+        while ( my ($name, $spec) = each %$spec ) {
+            my @variants = _get_variants($name);
+            $$storage{$name} = {
+                seq      => $seq_num++,
+                src      => $spec,
+                name     => $name,
+                variants => \@variants,
+            };
+            if ($minimal_keys) {
+                my $minimal = _minimize_name($name);
+                croak "Internal error: minimalist mode caused arguments",
+                   "'$name' and '$seen{$minimal}' to clash"
+                   if $seen{$minimal};
+                $seen{$minimal} = $name;
+            }
+            $long_names_hash{ _longestname(@variants) } = $name;
         }
-        $long_names{ _longestname(@variants) } = $name;
     }
-    while (@options) {
-        my ( $name, $spec ) = splice @options, 0, 2;
-        my @variants = _get_variants($name);
-        $options{$name} = {
-            seq      => $seq_num++,
-            src      => $spec,
-            name     => $name,
-            variants => \@variants,
-        };
-        if ($minimal_keys) {
-            my $minimal = _minimize_name($name);
-            croak "Internal error: minimalist mode caused arguments",
-              "'$name' and '$seen{$minimal}' to clash"
-              if $seen{$minimal};
-            $seen{$minimal} = $name;
-        }
-        $long_names{ _longestname(@variants) } = $name;
-    }
-    _minimize_entries_of( \%long_names );
+    _minimize_entries_of( \%long_names_hash );
 
     # Extract Euclid information...
+    _process_euclid_specs( values(%requireds_hash), values(%options_hash) );
+
+    # Build one-line representation of interface...
+    my $arg_summary = join ' ',
+      sort { $requireds_hash{$a}{seq} <=> $requireds_hash{$b}{seq} }
+      keys %requireds_hash;
+    1 while $arg_summary =~ s/\[ [^][]* \]//gxms;
+
+    if ($opt_name) {
+      $arg_summary .= ' ' if $arg_summary;
+      $arg_summary .= lc "[$opt_name]";
+    }
+    $arg_summary =~ s/\s+/ /gxms;
+
+    $man =~ s{ ^(=head1 $USAGE \s*) .*? (\s*) $EOHEAD }
+            {$1 $SCRIPT_NAME $arg_summary $2}xms;
+
+    # Insert default values (if any) in the program's documentation
+    $required = _insert_default_values(\%requireds, \%requireds_hash, \@requireds_order);
+    $options  = _insert_default_values(\%options  , \%options_hash  , \@options_order  );
+
+    $man =~ s{ ^(=head1 $REQUIRED \s*) .*? (\s*) $EOHEAD } {$1$required$2}xms;
+    $man =~ s{ ^(=head1 $OPTIONS  \s*) .*? (\s*) $EOHEAD } {$1$options$2}xms;
+
+    # Usage message
+    $usage  = "       $SCRIPT_NAME $arg_summary\n";
+    $usage .= "       $SCRIPT_NAME --help\n";
+    $usage .= "       $SCRIPT_NAME --version\n";
+
+    # Help message
+    $help  = "=head1 \L\uUsage:\E\E\n\n$usage\n";
+    $help .= "=head1 \L\u$req_name:\E\E\n\n$required\n\n"
+      if ( $req_name || q{} ) =~ /\S/;
+    $help .= "=head1 \L\u$opt_name:\E\E\n\n$options\n\n"
+      if ( $opt_name || q{} ) =~ /\S/;
+
+    $usage  = "Usage:\n".$usage;
+
+    # Version message
+    $version  = "This is $SCRIPT_NAME version $SCRIPT_VERSION\n";
+    $version .= "\n$licence\n" if $licence;
+
+    # Convert arg specifications to regexes...
+    _convert_to_regex( {%requireds_hash, %options_hash} );
+
+    # Build matcher...
+    my @arg_list = ( values(%requireds_hash), values(%options_hash) );
+    $matcher = join '|', map { $_->{matcher} }
+      sort( { $b->{name} cmp $a->{name} } grep { $_->{name} =~ /^[^<]/ }
+          @arg_list ),
+      sort( { $a->{seq} <=> $b->{seq} } grep { $_->{name} =~ /^[<]/ }
+          @arg_list );
+
+    $matcher .= '|(?> (.+)) (?{ push @errors, $^N }) (?!)';
+
+    $matcher = '(?:' . $matcher . ')';
+
+}
+
+
+sub _process_euclid_specs {
+    my (@args) = @_;
+    my %var_list;
+    my %excluded_by;
+
   ARG:
-    for my $arg ( values(%requireds), values(%options) ) {
+    for my $arg ( @args ) {
+
+        # Record variables seen here...
+        my $var_names = _check_name( $arg->{name} );
+        for my $var_name (@$var_names) {
+            $var_list{$var_name} = undef;
+        }
+
+        # Process arguments with a Euclid specification further
         $arg->{src} =~ s{^ =for \s+ Euclid\b [^\n]* \s* (.*) \z}{}ixms
-          or next ARG;
+            or next ARG;
         my $info = $1;
 
         $arg->{is_repeatable} = $info =~ s{^ \s* repeatable \s*? $}{}xms;
@@ -284,6 +542,7 @@ m/^=head1 [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $EOHEAD /xms
         if (@false_vals) {
             $arg->{false_vals} = '(?:' . join( '|', @false_vals ) . ')';
         }
+
 
         while (
             $info =~ m{\G \s* (([^.]+)\.([^:=\s]+) \s*[:=]\s* ([^\n]*)) }gcxms )
@@ -332,7 +591,22 @@ m/^=head1 [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $EOHEAD /xms
                 eval "\$val = $val; 1"
                   or _fail("Invalid .default value: $spec\n($@)");
                 $arg->{var}{$var}{default} = $val;
-                $arg->{has_defaults} = 1;
+                $arg->{has_defaults} = exists $arg->{has_defaults} ?
+                                      $arg->{has_defaults}++ :
+                                      1;
+            }
+            elsif ( $field eq 'excludes.error' ) {
+                $arg->{var}{$var}{excludes_error} = $val;
+            }
+            elsif ( $field eq 'excludes' ) {
+                $arg->{var}{$var}{excludes} = [ split '\s*,\s*', $val ];
+                for my $excl_var (@{$arg->{var}{$var}{excludes}}) {
+                    if ($var eq $excl_var) {
+                        _fail( "Invalid .excludes value for variable <$var>: ".
+                            "<$excl_var> cannot exclude itself\n" );
+                    }
+                    $excluded_by{$excl_var} = $var;
+                }
             }
             else {
                 _fail("Unknown specification: $spec");
@@ -343,187 +617,26 @@ m/^=head1 [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $EOHEAD /xms
         }
     }
 
-    # Build one-line representation of interface...
-    my $arg_summary = join ' ',
-      sort { $requireds{$a}{seq} <=> $requireds{$b}{seq} }
-      keys %requireds;
-    1 while $arg_summary =~ s/\[ [^][]* \]//gxms;
-    $arg_summary .= lc " [$opt_name]" if $opt_name;
-    $arg_summary =~ s/\s+/ /gxms;
-
-    $pod =~ s{ ^(=head1 $NAME \s*) .*? (- .*)? $EOHEAD }
-            {join(' ', $1, $prog_name, $2 || ())}xems;
-
-    $pod =~ s{ ^(=head1 $USAGE \s*) .*? (\s*) $EOHEAD }
-            {$1 $prog_name $arg_summary $2}xms;
-
-    $pod =~ s{ ^(=head1 $VERS    \s*) .*? (\s*) $EOHEAD }
-            {$1 This document refers to $prog_name version $SCRIPT_VERSION $2}xms;
-
-    # Handle standard args...
-    if ( grep { / --man /xms } @ARGV ) {
-        _print_and_exit( $pod, 'paged' );
-    }
-    elsif ( first { $_ eq '--usage' } @ARGV ) {
-        print "Usage: $prog_name $arg_summary\n", "       $prog_name --help\n";
-        exit;
-    }
-    elsif ( first { $_ eq '--help' } @ARGV ) {
-        my $pod = "=head1 Usage:\n\n$prog_name $arg_summary\n\n";
-        $pod .= "=head1 \L\u$req_name:\E\E\n\n$required\n\n"
-          if ( $required || q{} ) =~ /\S/;
-        $pod .= "=head1 \L\u$opt_name:\E\E\n\n$options\n\n"
-          if ( $options || q{} ) =~ /\S/;
-        _print_and_exit($pod);
-    }
-    elsif ( first { $_ eq '--version' } @ARGV ) {
-        print "This is $prog_name version $SCRIPT_VERSION\n";
-        if ($licence) {
-            print "\n$licence\n";
-        }
-        exit;
-    }
-
-    # Convert arg specifications to regexes...
-
-    _convert_to_regex( \%requireds );
-    _convert_to_regex( \%options );
-
-    # Build matcher...
-
-    my @arg_list = ( values(%requireds), values(%options) );
-    my $matcher = join '|', map { $_->{matcher} }
-      sort( { $b->{name} cmp $a->{name} } grep { $_->{name} =~ /^[^<]/ }
-          @arg_list ),
-      sort( { $a->{seq} <=> $b->{seq} } grep { $_->{name} =~ /^[<]/ }
-          @arg_list );
-
-    $matcher .= '|(?> (.+)) (?{ push @errors, $^N }) (?!)';
-
-    $matcher = '(?:' . $matcher . ')';
-
-    # Report problems in parsing...
-    *_bad_arglist = sub {
-        my (@msg) = @_;
-        my $msg = join q{}, @msg;
-        $msg =~ tr/\0\1/ \t/;
-        $msg =~ s/\n?\z/\n/xms;
-        warn "$msg(Try: $prog_name --help)\n\n";
-        exit 2;    # Traditional "bad arg list" value
-    };
-
-    # Run matcher...
-    my $all_args_ref = { %options, %requireds };
-
-    my $argv =
-      join( q{ }, map { my $arg = $_; $arg =~ tr/ \t/\0\1/; $arg } @ARGV );
-    if ( my $error = _doesnt_match( $matcher, $argv, $all_args_ref ) ) {
-        _bad_arglist($error);
-    }
-
-    # Check all requireds have been found...
-
-    my @missing;
-    for my $req ( keys %requireds ) {
-        push @missing, "\t$req\n"
-          if !exists $ARGV{$req};
-    }
-    _bad_arglist(
-        'Missing required argument',
-        ( @missing == 1 ? q{} : q{s} ),
-        ":\n", @missing
-    ) if @missing;
-
-    # Back-translate \0-quoted spaces and \1-quoted tabs...
-
-    _rectify_args();
-
-    # Check constraints and fill in defaults...
-
-    _verify_args($all_args_ref);
-
-    # Clean up @ARGV and %ARGV...
-
-    @ARGV = ();    # Everything must have been parsed, so nothign left
-
-    for my $arg_name ( keys %ARGV ) {
-
-        # Flatten non-repeatables...
-
-        my $vals = delete $ARGV{$arg_name};
-
-        my $repeatable = $all_args_ref->{$arg_name}{is_repeatable};
-
-        if ($repeatable) {
-            pop @{$vals};
-        }
-
-        for my $val ( @{$vals} ) {
-            my $var_count = keys %{$val};
-            $val = $var_count == 0
-              ? 1    # Boolean -> true
-              : $var_count == 1
-              ? ( values %{$val} )[0]    # Single var -> var's val
-              : $val                     # Otherwise keep hash
-              ;
-            my $false_vals = $all_args_ref->{$arg_name}{false_vals};
-            my @variants   = _get_variants($arg_name);
-            my %vars_opt_vals;
-
-            for my $arg_flag (@variants) {
-                my $variant_val = $val;
-                if ( $false_vals && $arg_flag =~ m{\A $false_vals \z}xms ) {
-                    $variant_val = $variant_val ? 0 : 1;
+    # Validate and complete .excludes specs
+    for my $arg ( @args ) {
+        for my $var (keys %{$arg->{var}}) {
+            # Check for invalid placeholder name in .excludes specifications
+            for my $excl_var (@{$arg->{var}{$var}{excludes}}) {
+                if (not exists $var_list{$excl_var}) {
+                    _fail( "Invalid .excludes value for variable <$var>: ".
+                        "<$excl_var> does not exist\n" );
                 }
-
-                if ($repeatable) {
-                    push @{ $ARGV{$arg_flag} }, $variant_val;
-                }
-                else {
-                    $ARGV{$arg_flag} = $variant_val;
-                }
-                $vars_opt_vals{$arg_flag} = $ARGV{$arg_flag} if $vars_prefix;
             }
-
-            if ($vars_prefix) {
-                _minimize_entries_of( \%vars_opt_vals );
-                my $maximal = _longestname( keys %vars_opt_vals );
-                _export_var( $vars_prefix, $maximal, $vars_opt_vals{$maximal} );
-                delete $long_names{$maximal};
+            # Fill in placeholders that are excluded by others
+            if ( exists $excluded_by{$var} ) {
+              my $mut_var = $excluded_by{$var};
+              push @{$arg->{var}{$var}{excluded_by}}, $mut_var;
             }
         }
     }
 
-    if ($vars_prefix) {
-
-        # export any unspecified options to keep use strict happy
-        for my $opt_name ( keys %long_names ) {
-            my $arg_name = $long_names{$opt_name};
-            my $arg_info = $all_args_ref->{$arg_name};
-            my $val;
-            $val = []
-              if $arg_info->{is_repeatable}
-                  or $arg_name =~ />\.\.\./;
-            $val = {} if keys %{ $arg_info->{var} } > 1;
-            _export_var( $vars_prefix, $opt_name, $val );
-        }
-    }
-
-    if ($minimal_keys) {
-        _minimize_entries_of( \%ARGV );
-    }
 }
 
-# ###### Utility subs #############
-
-# Recursively remove decorations on %ARGV keys
-
-sub AUTOLOAD {
-    our $AUTOLOAD;
-    $AUTOLOAD =~ s{.*::}{main::}xms;
-    no strict 'refs';
-    goto &$AUTOLOAD;
-}
 
 sub _minimize_name {
     my ($name) = @_;
@@ -570,18 +683,10 @@ sub _doesnt_match {
             next ARG
               if $error !~ m/\A [\s\0\1]* ($arg_spec_ref->{generic_matcher})/xms
                   || !$bad_type;
-
-            my $msg;
-            if ( $msg = $bad_type->{type_error} ) {
-                my $var = $bad_type->{var};
-                $var =~ s{\W+}{}gxms;
-                $msg =~ s{(?<!<)\b$var\b|\b$var\b(?!>)}{$bad_type->{val}}gxms;
-            }
-            else {
-                $msg = qq{$bad_type->{var} must be $bad_type->{type}}
-                  . qq{ but the supplied value ("$bad_type->{val}") isn't.};
-            }
-            return qq{Invalid "$bad_type->{arg}" argument\n$msg};
+            
+            my $msg = _type_error( $bad_type->{arg}, $bad_type->{var},
+                $bad_type->{val}, $bad_type->{type}, $bad_type->{type_error} );
+            return $msg;
         }
         return "Unknown argument: $error";
     }
@@ -616,7 +721,55 @@ sub _rectify_args {
 
 sub _verify_args {
     my ($arg_specs_ref) = @_;
+    # Check exclusive variables, variable constraints and fill in defaults...
 
+    # Handle mutually exclusive arguments
+    my %seen_vars; 
+    for my $arg_name (keys %ARGV) {
+        for my $elem (@{$ARGV{$arg_name}}) {
+            for my $var_name (keys %$elem) {
+                $seen_vars{$var_name} = $arg_name if $var_name;
+            }
+        }
+    }
+    for my $arg_name ( keys %{$arg_specs_ref} ) {
+        my $arg = $arg_specs_ref->{$arg_name};
+        for my $var_name ( keys %{$arg->{var}} ) {
+            my $var = $arg->{var}->{$var_name};
+            # Enforce placeholders that cannot be specified with others
+            for my $excluded_var ( @{$var->{excludes}} ) {
+                if (exists $seen_vars{$var_name} &&
+                    exists $seen_vars{$excluded_var}) {
+                    my $excl_arg = $seen_vars{$excluded_var};
+                    my $msg;
+                    if (exists $var->{excludes_error}) {
+                        $msg = $var->{excludes_error};
+                    } else {
+                        $msg =
+                            qq{Invalid "$excl_arg" argument.\n<$excluded_var> }.
+                            qq{cannot be specified with <$var_name> because }.
+                            qq{argument "$arg_name" excludes <$excluded_var>};
+                    }
+                    _bad_arglist($msg);                
+                }
+            }
+            # Default values do not apply to arguments excluded by others
+            for my $excl_var ( @{$var->{excluded_by}}, @{$var->{excludes}} ) {
+                if (exists $seen_vars{$excl_var}) {
+                    delete $arg_specs_ref->{$arg_name}{var}{$var_name}{default};
+                    $arg_specs_ref->{$arg_name}{has_defaults}--;
+                    if ($arg_specs_ref->{$arg_name}{has_defaults} == 0) {
+                        delete $arg_specs_ref->{$arg_name}{has_defaults};
+                    }
+                }
+            }
+
+        }
+    }
+    undef %seen_vars;
+
+
+    # Enforce constraints and fill in defaults...
   ARG:
     for my $arg_name ( keys %{$arg_specs_ref} ) {
 
@@ -649,14 +802,12 @@ sub _verify_args {
                             : $entry->{$var}
                           )
                         {
-                            _bad_arglist(
-                                qq{Invalid "$arg_name" argument.\n},
-                                qq{<$var> must be },
-                                $arg_vars->{$var}{constraint_desc},
-                                qq{ but the supplied value ("$val") isn't.}
-                              )
-                              if $arg_vars->{$var}{constraint}
-                                  && !$arg_vars->{$var}{constraint}->($val);
+                            if ( $arg_vars->{$var}{constraint} &&
+                                !$arg_vars->{$var}{constraint}->($val) ) {
+                                _bad_arglist( _type_error($arg_name, $var, $val,
+                                    $arg_vars->{$var}->{constraint_desc},
+                                    $arg_vars->{$var}->{type_error}) );
+                            }
                         }
                         next VAR;
                     }
@@ -669,14 +820,12 @@ sub _verify_args {
                             : $entry
                           )
                         {
-                            _bad_arglist(
-                                qq{Invalid "$arg_name" argument.\n},
-                                qq{<$var> must be },
-                                $arg_vars->{$var}{constraint_desc},
-                                qq{ but the supplied value ("$val") isn't.}
-                              )
-                              if $arg_vars->{$var}{constraint}
-                                  && !$arg_vars->{$var}{constraint}->($val);
+                            if ( $arg_vars->{$var}{constraint} &&
+                                !$arg_vars->{$var}{constraint}->($val) ) {
+                                _bad_arglist( _type_error( $arg_name, $var, $val,
+                                    $arg_vars->{$var}->{constraint_desc},
+                                    $arg_vars->{$var}->{type_error}) );
+                            }
                             $entry->{$var} = ''
                               unless defined( $ARGV{$arg_name} );
                         }
@@ -708,8 +857,34 @@ sub _verify_args {
     }
 }
 
+
+sub _type_error {
+    my ($arg_name, $var_name, $var_val, $var_constraint, $var_error) = @_;
+    my $msg = qq{Invalid "$arg_name" argument.\n};
+    $var_name =~ s{\W+}{}gxms;
+    if ( $var_error ) {
+        $msg = $var_error;
+        $msg =~ s{(?<!<)\b$var_name\b|\b$var_name\b(?!>)}{$var_val}gxms;
+    } else {
+        $msg = qq{<$var_name> must be $var_constraint but the supplied value }.
+               qq{("$var_val") isn't.};
+    }
+    return $msg;
+}
+
+
 sub _convert_to_regex {
     my ($args_ref) = @_;
+
+    # Regexp to capture the start of a new argument
+    my @arg_variants;
+    for my $arg_name ( keys %{$args_ref} ) {
+        push @arg_variants, @{$args_ref->{$arg_name}->{variants}};
+    }
+    my $no_match = join('|',@arg_variants);
+    $no_match =~ s{([@#$^*()+{}?])}{\\$1}gxms; # Quotemeta specials
+    $no_match = '(?!'.$no_match.')';
+
 
     for my $arg_name ( keys %{$args_ref} ) {
         my $arg   = $args_ref->{$arg_name};
@@ -725,6 +900,9 @@ sub _convert_to_regex {
 
         $regex =~ s/ (\s+) /$1.'[\\s\\0\\1]*'/egxms;
         my $generic = $regex;
+
+
+        # Set the matcher
         $regex =~ s{ < (.*?) >(\.\.\.|) }
                    { my ($var_name, $var_rep) = ($1, $2);
                      $var_name =~ s/(\s+)\[\\s\\0\\1]\*/$1/gxms;
@@ -734,7 +912,7 @@ sub _convert_to_regex {
                                         ? eval "qr$type"
                                         : $STD_MATCHER_FOR{ $type }
                          or _fail("Unknown type ($type) in specification: $arg_name");
-                     $var_rep              ? "(?:[\\s\\0\\1]*($matcher)(?{push \@{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}}}, \$^N}))+"
+                     $var_rep              ? "(?:[\\s\\0\\1]*$no_match($matcher)(?{push \@{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}}}, \$^N}))+"
                      :
                      "(?:($matcher)(?{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}} = \$^N}))"
                    }gexms
@@ -755,6 +933,7 @@ sub _convert_to_regex {
               );
         }
 
+        # Set the generic matcher
         $generic =~ s{ < (.*?) > }
                      { my $var_name = $1;
                        $var_name =~ s/(\s+)\[\\s\\0\\1]\*/$1/gxms;
@@ -772,7 +951,7 @@ sub _convert_to_regex {
     return;
 }
 
-sub _print_and_exit {
+sub _print_pod {
     my ( $pod, $paged ) = @_;
 
     if ( -t *STDOUT and eval { require Pod::Text } ) {
@@ -787,8 +966,25 @@ sub _print_and_exit {
         print $pod;
     }
 
-    exit;
 }
+
+
+sub _check_name {
+    # Check that the argument name only has pairs of < > brackets (ticket 34199)
+    # Return the name of the variables that this argument specifies
+    my ($name) = @_;
+    my %var_names;
+    for my $s (extract_multiple($name,[sub{extract_bracketed($_[0],'<>')}],undef,0)) {
+        if ($s =~ s/^<(.*)>$/$1/) {
+            $var_names{$1} = undef;
+        }
+        if ( $s =~ m/[<>]/ ) {
+            _fail( 'Invalid argument specification: ' . $name );
+        }
+    }
+    return [keys %var_names];
+}
+
 
 sub _get_variants {
     my @arg_desc = shift =~ m{ [^[|]+ (?: $OPTIONAL [^[|]* )* }gmxs;
@@ -834,12 +1030,86 @@ sub _longestname {
 
 sub _export_var {
     my ( $prefix, $key, $value ) = @_;
+    my $callpkg = caller(2+($Exporter::ExportLevel || 0)); # at import()'s level
     my $export_as = $prefix . $key;
     $export_as =~ s{\W}{_}gxms;    # mainly for '-'
-    my $callpkg = caller( 1 + ( $Exporter::ExportLevel || 0 ) );
     no strict 'refs';
     *{"$callpkg\::$export_as"} = ( ref $value ) ? $value : \$value;
 }
+
+# Utility sub to factor out hash key aliasing...
+sub _make_equivalent {
+    my ( $hash_ref, %alias_hash ) = @_;
+
+    while ( my ( $name, $aliases ) = each %alias_hash ) {
+        foreach my $alias (@$aliases) {
+            $hash_ref->{$alias} = $hash_ref->{$name};
+        }
+    }
+
+    return;
+}
+
+# Report problems in specification...
+sub _fail {
+    my (@msg) = @_;
+    die "Getopt::Euclid: @msg\n";
+}
+
+
+sub _process_pm_pod {
+    my @caller = caller(2); # at import()'s level
+
+    # Save module's POD...
+    open my $fh, '<', $caller[1]
+      or croak "Getopt::Euclid was unable to access POD\n($!)\nProblem was";
+    push @pm_pods, do { local $/; <$fh> };
+
+    # Install this import() sub as module's import sub...
+    no strict 'refs';
+    croak '.pm file cannot define an explicit import() when using Getopt::Euclid'
+      if *{"$caller[0]::import"}{CODE};
+
+    my $lambda;    # Needed so the anon sub is generated at run-time
+    *{"$caller[0]::import"}
+      = bless sub { $lambda = 1; goto &Getopt::Euclid::import },
+      'Getopt::Euclid::Importer';
+
+}
+
+
+sub _insert_default_values {
+    my ($pod_items, $args, $order) = @_;
+    my $pod_string = '';
+    for my $item_name (@$order) {
+        my $item_spec = $$pod_items{$item_name};
+        $item_spec =~ s/=for(.*)//ms;
+        $pod_string .= "=item $item_name\n\n";
+        # Get list of variable for this argument
+        my @var_names = keys %{$args->{$item_name}->{var}};
+        for my $var_name (@var_names) {
+            # Get default for this variable
+            my $var = $args->{$item_name}->{var}->{$var_name};
+            my $var_default;
+            if (exists $var->{default}) {
+                if (ref($var->{default}) eq 'ARRAY') {
+                    $var_default = join(' ', @{$var->{default}});
+                } elsif (ref($var->{default}) eq '') {
+                    $var_default = $var->{default};
+                } else {
+                    carp "Getopt::Euclid found an unexpected default value type";
+                }
+            } else {
+                $var_default = 'none';
+            }
+            $item_spec =~ s/$var_name\.default/$var_default/g;
+        }
+        $pod_string .= $item_spec;
+    }
+    $pod_string = "=over\n\n".$pod_string."=back\n\n";
+    return $pod_string;
+}
+
 
 1;                                 # Magic true value required at end of module
 
@@ -1018,6 +1288,10 @@ and your command-line is parsed automagically.
 
 =head2 Module Interface
 
+=over
+
+=item import()
+
 You write:
 
     use Getopt::Euclid;
@@ -1039,6 +1313,17 @@ have the POD from several modules included for argument parsing.
     use Module1::Getopt (); # No argument parsing
     use Module2::Getopt (); # No argument parsing
     use Getopt::Euclid;     # Arguments parsed
+
+=item process_args()
+
+Alternatively, to parse arguments from a source different from C<@ARGV>, use the
+C<process_args()> subroutine.
+
+    use Getopt::Euclid;
+    my @args = ( '-in file.txt', '-out results.txt' );
+    Getopt::Euclid->process_args(\@args);
+
+=back
 
 =head2 POD Interface
 
@@ -1350,18 +1635,31 @@ level placeholder keys I<don't> retain their angle-brackets.
 
 Any placeholder that is immediately followed by C<...>, like so:
 
-    =item -lib <files>...
-
-    =item <offsets>...
+    =item -lib <file>...
 
     =for Euclid:
-        offsets.type: integer > 0
+        file.type: readable
 
-will match as many times as possible, but at least once. Note that
-this implies that an unconstrained repeated unflagged placeholder
-(see L<Placeholder constraints> and L<Unflagged placeholders>) will
-consume the rest of the command-line, and so should be specified last
-in the POD.
+will match at least once, but as many times as possible before encountering
+the next argument on the command-line. This allows to specify multiple values
+for an argument, for example:
+
+    -lib file1.txt file2.txt
+
+An unconstrained repeated unflagged placeholder (see L<Placeholder constraints>
+and L<Unflagged placeholders>) will consume the rest of the command-line, and
+so should be specified last in the POD
+
+    =item -n <name>
+
+    =item <offset>...
+
+    =for Euclid:
+        offset.type: 0+int
+
+and on the command-line:
+
+    -n foobar 1 5 0 23
 
 If a placeholder is repeated, the corresponding entry in C<%ARGV>
 will then be an array reference, with each individual placeholder match
@@ -1517,6 +1815,45 @@ The default value can be any valid Perl compile-time expression:
     =for Euclid:
         pi value.default: atan2(0,-1)
 
+You can refer to an argument default value in its POD entry as shown below:
+
+    =item -size <h>[x<w>]
+
+    Set the size of the simulation [default: h.default x w.default]
+
+    =for Euclid:
+        h.default: 24
+        w.default: 80
+
+=head2 Exclusive placeholders
+
+Some arguments can be mutually exclusive. In this case, it is possible to
+specify that a placeholder excludes a list of other placeholders, for example:
+
+    =item -height <h>
+
+    Set the desired height
+
+    =item -width <w>
+
+    Set the desired width
+
+    =item -volume <v>
+
+    Set the desired volume
+
+    =for Euclid:
+        v.excludes: h, w
+        v.excludes.error: Either set the volume or the height and weight
+
+Specifying both placeholders at the same time on the command-line will
+generate an error. Note that the error message can be customized, as
+illustrated above.
+
+When using exclusive arguments that have default values, the default value of
+the placeholder with the .excludes statement has precedence over any other
+placeholders.
+
 =head2 Argument cuddling
 
 Getopt::Euclid allows any "flag" argument to be "cuddled". A flag
@@ -1623,32 +1960,38 @@ The standard arguments are:
 
 =over
 
-=item --usage
+=item --usage  usage()
 
-This argument cause the program to print a short usage summary and exit.
+The --usage argument causes the program to print a short usage summary and exit.
+The C<Getopt::Euclid->usage()> subroutine provides access to the string of this
+message.
 
-=item --help
+=item --help  help()
 
-This argument cause the program to print a longer usage summary (including a
-full list of required and optional arguments) and exit.
+The --help argument causes the program to print a longer usage summary (with
+a full list of required and optional arguments) and exit. The
+C<Getopt::Euclid->help()> subroutine provides access to the string of this
+message.
 
-=item --man
+=item --man  man()
 
-This argument cause the program to print the complete POD documentation
-for the program and exit. If the standard output stream is connected to
-a terminal and the POD::Text module is available, the POD is formatted
-before printing. If the IO::Page or IO::Pager::Page module is available,
-the formatted documentation is then paged.
+The --man argument causes the program to print the complete POD documentation
+for the program and exit. The C<Getopt::Euclid->man()> subroutine provides
+access to the string of this message.
 
-If standard output is not connected to a terminal or POD::Text is not
-available, the POD is not formatted.
+For --man, if the standard output stream is connected to a terminal and the
+POD::Text module is available, the POD is formatted before printing. If the
+IO::Page or IO::Pager::Page module is available, the formatted documentation is
+then paged. If standard output is not connected to a terminal or POD::Text is
+not available, the POD is not formatted.
 
-=item --version
+=item --version  version()
 
-This argument causes the program to print the version number of the
+The --version argument causes the program to print the version number of the
 program (as specified in the C<=head1 VERSION> section of the POD) and
 any copyright information (as specified in the C<=head1 COPYRIGHT>
-POD section) and then exit.
+POD section) and then exit. The C<Getopt::Euclid->version()> subroutine provides
+access to the string of this message.
 
 =back
 
@@ -1689,6 +2032,18 @@ specifier:
 Note that, in rare cases, using this mode may cause you to lose
 data (for example, if the interface specifies both a C<--step> and
 a C<< <step> >> option). The module throws an exception if this happens.
+
+=head2 Defering argument parsing
+
+In some instances, you may want to avoid the parsing of arguments to take place
+as soon as your program is executed and Getopt::Euclid is loaded. For example,
+you may need to examine C<@ARGV> before it is processed (and emptied) by
+Getopt::Euclid. Or you may intend to pass your own arguments manually only
+using C<process_args()>.
+
+To allow to defer the parsing of arguments, use the specifier C<':defer'>:
+
+    use Getopt::Euclid qw( :defer );
 
 =head1 DIAGNOSTICS
 
@@ -1762,6 +2117,11 @@ instead of:
 
     =for Euclid
         curse.default: '*$@!&'
+
+=item Invalid .excludes value for variable %s: <%s> does not exist
+
+You specified to exclude a variable that was not seen in the POD. Make sure
+that this is not a typo.
 
 =item Invalid constraint: %s (No <%s> placeholder in argument: %s)
 
@@ -1864,7 +2224,7 @@ L<http://rt.cpan.org>.
 
 Damian Conway  C<< <DCONWAY@cpan.org> >>
 
-Kevin Galinsky C<< <kgalinsky+cpan at gmail.com> >>
+Florent Angly C<< <florent.angly@gmail.com> >>
 
 =head1 LICENCE AND COPYRIGHT
 
