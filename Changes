@@ -1,5 +1,16 @@
 Revision history for Getopt-Euclid
 
+0.2.5
+  - Bugfix for #69324: more efficient and accurate POD extraction using Perl::Tidy
+  - Bugfix for #29301: automatically looking for POD located into .pod files
+  - Bugfix for #69105: file META.yml states which license the module uses
+  - Bugfix for #34200: variables in constraint specifications are read as
+    originating from the 'main' package namespace
+  - Little internal modification to prevent identical placeholders that are
+    present multiple times in the specification to be processed multiple times.
+  - Error messages for arguments that do not validate against the constraints
+    now display the value of variables instead of their name.
+
 0.2.4
   - Default values can now be specified in the POD and displayed in the program
     documentation

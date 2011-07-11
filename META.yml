@@ -1,19 +1,22 @@
 --- #YAML:1.0
 name:               Getopt-Euclid
-version:            0.2.4
+version:            0.2.5
 abstract:           Executable Uniform Command-Line Interface Descriptions
 author:
     - Damian Conway <DCONWAY@cpan.org>
-license:            unknown
+license:            perl
 distribution_type:  module
 configure_requires:
     ExtUtils::MakeMaker:  0
 build_requires:
     ExtUtils::MakeMaker:  0
 requires:
+    File::Basename:       0
     File::Spec::Functions:  0
     List::Util:           0
+    Perl::Tidy:           0
     Test::More:           0
+    Text::Balanced:       0
     version:              0
 no_index:
     directory:

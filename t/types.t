@@ -110,8 +110,8 @@ got_args $ARGV{'-writeable'}, [$OUT1, $OUT2];
 got_args $ARGV{'-output'},    [$OUT1, $OUT2];
 got_args $ARGV{'-out'},       [$OUT1, $OUT2];
 
-# type 'regex' tested in file ./t/regex_types.t
-
+# type 'regex' tested in file ./t/types_regex.t
+# comparison to $variables are tested in file ./t/types_vars.t
 
 __END__
 
