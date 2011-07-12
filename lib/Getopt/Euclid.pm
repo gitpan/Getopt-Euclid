@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.2.5');
+use version; $VERSION = qv('0.2.6');
 
 use warnings;
 use strict;
@@ -1099,7 +1099,6 @@ sub _get_pod {
         # Get corresponding .pod file
         my ($name, $path, $suffix) = fileparse($perl_file, qr/\.[^.]*/);
         my $pod_file = catfile( $path, $name.'.pod' );
-        $pod_file =~ s/\..*?$/.pod/i; # the corresponding .pod file
         my @in_files = ($perl_file);
         push @in_files, $pod_file if ( -e $pod_file );
     
@@ -1159,7 +1158,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.2.5
+This document describes Getopt::Euclid version 0.2.6
 
 =head1 SYNOPSIS
 
@@ -1367,9 +1366,10 @@ C<process_args()> subroutine.
 
 =head2 POD Interface
 
-This is where all the action is. POD markup can be inserted anywhere in the Perl
-code. Typically, it is added either after an __END__ statement like in the
-synopsis, interspersed in the code, or in a .pod file with the same file prefix:
+This is where all the action is. POD markup can be placed in a .pod file that
+has the same prefix as the corresponding Perl file. Alternatively, POD can be
+inserted anywhere in the Perl code, but is typically added either after an
+__END__ statement (like in the L<SYNOPSIS>), or interspersed in the code:
 
     use Getopt::Euclid;
 
@@ -2016,7 +2016,7 @@ as a cuddled version of:
 
 By default, the module only stores arguments into the global %ARGV hash.
 You can request that options are exported as variables into the calling package
-the special C<':vars'> specifier:
+using the special C<':vars'> specifier:
 
     use Getopt::Euclid qw( :vars );
 
@@ -2345,8 +2345,10 @@ L<http://rt.cpan.org>.
 
 Getopt::Euclid has a development repository on Sourceforge.net at
 L<http://sourceforge.net/scm/?type=git&group_id=259291> in which the code is
-managed by Git (L<git://getopt-euclid.git.sourceforge.net/gitroot/getopt-euclid/getopt-euclid>).
-Feel free to clone this repository and push patches!
+managed by Git. Feel free to clone this repository and push patches! To get started:
+  git clone L<git://getopt-euclid.git.sourceforge.net/gitroot/getopt-euclid/getopt-euclid>)
+  git branch 0.2.x origin/0.2.x
+  git checkout 0.2.x
 
 =head1 AUTHOR
 

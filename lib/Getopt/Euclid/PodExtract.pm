@@ -26,7 +26,7 @@ ignored when using a formatter.
 
 Perl::Tidy seems to have a more robust POD parsing mechanisms than Pod::Parser
 or Pod::Simple, which makes it useful to correctly parse POD code, even when
-rogue POD hide inside Perl variables, as in this example:
+rogue POD hides inside Perl variables, as in this example:
 
   use strict;
   use warnings;

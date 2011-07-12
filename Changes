@@ -1,5 +1,8 @@
 Revision history for Getopt-Euclid
 
+0.2.6
+  - Bugfix: corrected a .pod file finding issue
+
 0.2.5
   - Bugfix for #69324: more efficient and accurate POD extraction using Perl::Tidy
   - Bugfix for #29301: automatically looking for POD located into .pod files
