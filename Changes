@@ -1,5 +1,8 @@
 Revision history for Getopt-Euclid
 
+0.2.7
+  - Updated dependencies in Build.PL module
+
 0.2.6
   - Bugfix: corrected a .pod file finding issue
 
