@@ -10,7 +10,7 @@ BEGIN {
     chmod 0644, $0;
 }
 
-use Getopt::Euclid::HierDemo;
+use t::lib::HierDemo;
 use Test::More 'no_plan';
 
 is keys %ARGV, 6 => 'Right number of args returned';

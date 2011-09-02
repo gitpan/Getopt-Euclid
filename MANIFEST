@@ -1,8 +1,6 @@
 Build.PL
 Changes
 lib/Getopt/Euclid.pm
-lib/Getopt/Euclid/HierDemo.pm
-lib/Getopt/Euclid/HierDemo.pod
 lib/Getopt/Euclid/PodExtract.pm
 Makefile.PL
 MANIFEST			This list of files
@@ -21,6 +19,7 @@ t/fail_bad_excludes.t
 t/fail_bad_excludes_2.t
 t/fail_bad_name.t
 t/fail_bad_name_2.t
+t/fail_bad_opt_default.t
 t/fail_excludes_msg.t
 t/fail_minimal_clash.t
 t/fail_misplaced_type.t
@@ -43,8 +42,11 @@ t/hier.t
 t/hier_export.t
 t/hier_no_pod.t
 t/insert_defaults.t
+t/lib/HierDemo.pm
+t/lib/HierDemo.pod
 t/messages.t
 t/minimal.t
+t/opt_default.t
 t/pod.t
 t/pod_cmd_after_cut.t
 t/pod_coverage.t
@@ -54,6 +56,7 @@ t/quoted_args.t
 t/repeatable.t
 t/repeated.t
 t/simple.t
+t/simple_alternate.t
 t/simple_shuffle.t
 t/types.t
 t/types_regex.t

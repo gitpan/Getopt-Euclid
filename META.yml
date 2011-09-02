@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Getopt-Euclid
-version:            0.2.7
+version:            0.2.8
 abstract:           Executable Uniform Command-Line Interface Descriptions
 author:
     - Damian Conway <DCONWAY@cpan.org>

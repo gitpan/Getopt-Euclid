@@ -45,9 +45,9 @@ Specify output file [default: -]
 
 =over
 
-=item size <h>x<w>
+=item size [<h>]x[<w>]
 
-Specify height and width [default: 1.8 x 0.2]
+Specify height and width [optional default: 1.8 x 0.2]
 
 =item -l[[en][gths]] <l>...
 
@@ -64,6 +64,7 @@ Print all warnings
 =item --timeout [<min>] [<max>]
 
 [default: min=none and max=-1]
+[optional default: min=none and max=-3]
 
 =item -w <space> | --with <space>
 
@@ -128,9 +129,9 @@ Specify output file [default: -]
 
 =over
 
-=item size <h>x<w>
+=item size [<h>]x[<w>]
 
-Specify height and width [default: 1.8 x 0.2]
+Specify height and width [optional default: 1.8 x 0.2]
 
 =item -l[[en][gths]] <l>...
 
@@ -147,6 +148,7 @@ Print all warnings
 =item --timeout [<min>] [<max>]
 
 [default: min=none and max=-1]
+[optional default: min=none and max=-3]
 
 =item -w <space> | --with <space>
 
@@ -232,15 +234,15 @@ Specify output file [default: out_file.default]
 
 =over
 
-=item  size <h>x<w>
+=item  size [<h>]x[<w>]
 
-Specify height and width [default: h.default x w.default]
+Specify height and width [optional default: h.opt_default x w.opt_default]
 
 =for Euclid:
     h.type: number > 0
-    h.default: 1.8
+    h.opt_default: 1.8
     w.type: number > 0
-    w.default: 0.2
+    w.opt_default: 0.2
 
 =item  -l[[en][gths]] <l>...
 
@@ -264,11 +266,13 @@ Print all warnings
 =item --timeout [<min>] [<max>]
 
 [default: min=min.default and max=max.default]
+[optional default: min=min.opt_default and max=max.opt_default]
 
 =for Euclid:
     min.type: int
     max.type: int
     max.default: -1
+    max.opt_default: -3
 
 =item -w <space> | --with <space>
 
