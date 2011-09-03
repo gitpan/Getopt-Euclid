@@ -1,28 +1,33 @@
---- #YAML:1.0
-name:               Getopt-Euclid
-version:            0.2.8
-abstract:           Executable Uniform Command-Line Interface Descriptions
+---
+abstract: 'Executable Uniform Command-Line Interface Descriptions'
 author:
-    - Damian Conway <DCONWAY@cpan.org>
-license:            perl
-distribution_type:  module
-configure_requires:
-    ExtUtils::MakeMaker:  0
+  - 'Damian Conway (DCONWAY@CPAN.org)'
 build_requires:
-    ExtUtils::MakeMaker:  0
-requires:
-    File::Basename:       0
-    File::Spec::Functions:  0
-    List::Util:           0
-    Perl::Tidy:           0
-    Test::More:           0
-    Text::Balanced:       0
-    version:              0
-no_index:
-    directory:
-        - t
-        - inc
-generated_by:       ExtUtils::MakeMaker version 6.56
+  ExtUtils::MakeMaker: 6.42
+  Test::More: 0
+configure_requires:
+  ExtUtils::MakeMaker: 6.42
+distribution_type: module
+generated_by: 'Module::Install version 1.01'
+license: perl
 meta-spec:
-    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
-    version:  1.4
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Getopt-Euclid
+no_index:
+  directory:
+    - inc
+    - t
+requires:
+  File::Basename: 0
+  File::Spec::Functions: 0
+  List::Util: 0
+  Perl::Tidy: 0
+  Text::Balanced: 0
+  version: 0
+resources:
+  bugtracker: https://rt.cpan.org/Dist/Display.html?Name=Getopt-Euclid
+  homepage: http://search.cpan.org/search?query=Getopt%3A%3AEuclid&mode=dist
+  license: http://dev.perl.org/licenses/
+  repository: git://getopt-euclid.git.sourceforge.net/gitroot/getopt-euclid/getopt-euclid
+version: 0.002009

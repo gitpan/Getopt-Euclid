@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.2.8');
+use version; $VERSION = qv('0.2.9');
 
 use warnings;
 use strict;
@@ -15,7 +15,7 @@ use Perl::Tidy;
 # Set some module variables
 my $has_run = 0;
 my $constraints_processed = 0;
-my @pm_pods;
+my @pods;
 my $minimal_keys;
 my $vars_prefix;
 my $defer;
@@ -31,8 +31,6 @@ my $version; # --version message
 # Global variables
 our $SCRIPT_NAME;
 our $SCRIPT_VERSION; # for ticket # 55259
-
-# END { $has_run = 1 }
 
 my $OPTIONAL;
 $OPTIONAL = qr{ \[ [^[]* (?: (??{$OPTIONAL}) [^[]* )* \] }xms;
@@ -317,20 +315,21 @@ sub _process_pod {
 
 sub _process_prog_pod {
     # Set up parsing rules...
-    my $HWS     = qr{ [^\S\n]*      }xms;
-    my $EOHEAD  = qr{ (?= ^=head1 | \z)  }xms;
-    my $POD_CMD = qr{            = [^\W\d]\w+ [^\n]* (?= \n\n )}xms;
-    my $POD_CUT = qr{ (?! \n\n ) = cut $HWS          (?= \n\n )}xms;
+    my $SPACE      = qr{ [^\S\n]*               }xms;
+    my $HEAD_START = qr{ ^=head[1-4]            }xms;
+    my $HEAD_END   = qr{ (?= $HEAD_START | \z)  }xms;
+    my $POD_CMD    = qr{            = [^\W\d]\w+ [^\n]* (?= \n\n )}xms;
+    my $POD_CUT    = qr{ (?! \n\n ) = cut $SPACE        (?= \n\n )}xms;
 
-    my $NAME  = qr{ $HWS NAME    $HWS \n }xms;
-    my $VERS  = qr{ $HWS VERSION $HWS \n }xms;
-    my $USAGE = qr{ $HWS USAGE   $HWS \n }xms;
+    my $NAME  = qr{ $SPACE NAME    $SPACE \n }xms;
+    my $VERS  = qr{ $SPACE VERSION $SPACE \n }xms;
+    my $USAGE = qr{ $SPACE USAGE   $SPACE \n }xms;
 
     my $STD = qr{ STANDARD | STD | PROGRAM | SCRIPT | CLI  | COMMAND(?:-|\s)?LINE }xms;
-    my $ARG = qr{ $HWS (?:PARAM(?:ETER)?|ARG(?:UMENT)?)S? }xms;
+    my $ARG = qr{ $SPACE (?:PARAM(?:ETER)?|ARG(?:UMENT)?)S? }xms;
 
-    my $OPTIONS  = qr{ $HWS $STD? $HWS OPTION(?:AL|S)?        $ARG? $HWS \n }xms;
-    my $REQUIRED = qr{ $HWS $STD? $HWS (?:REQUIRED|MANDATORY) $ARG? $HWS \n }xms;
+    my $OPTIONS  = qr{ $SPACE $STD? $SPACE OPTION(?:AL|S)?        $ARG? $SPACE \n }xms;
+    my $REQUIRED = qr{ $SPACE $STD? $SPACE (?:REQUIRED|MANDATORY) $ARG? $SPACE \n }xms;
 
     my $EUCLID_ARG = qr{ ^=item \s* ([^\n]*?) \s* \n\s*\n
                         (
@@ -343,10 +342,10 @@ sub _process_prog_pod {
                     }xms;
 
     # Acquire POD source...
-    my $source = $0;
-    $man = _get_pod( $source, reverse @pm_pods );
+    push @pods, $0 if (-e $0); # When calling perl -e '...', $0 is '-e', i.e. not a actual file
+    $man = _get_pod( reverse @pods );
 
-    # Clean up line delimeters
+    # Clean up line delimiters
     $man =~ s{ [\n\r] }{\n}gx;
 
     # Clean up significant entities...
@@ -354,38 +353,37 @@ sub _process_prog_pod {
     $man =~ s{ E<gt> }{>}gxms;
 
     # Put program name in man
-    ($SCRIPT_NAME) = ( splitpath($0) )[-1];
-    $man =~ s{ ^(=head1 $NAME \s*) .*? (- .*)? $EOHEAD }
+    $SCRIPT_NAME = (-e $0) ? (splitpath $0)[-1] : 'unknown';
+    $man =~ s{ ($HEAD_START $NAME \s*) .*? (- .*)? $HEAD_END }
              {join(' ', $1, $SCRIPT_NAME, $2 || "\n\n" )}xems;
 
     # Put version number in man
     ($SCRIPT_VERSION) = 
-        $man =~ m/^=head1 $VERS .*? (\d+(?:[._]\d+)+) .*? $EOHEAD /xms;
+        $man =~ m/$HEAD_START $VERS .*? (\d+(?:[._]\d+)+) .*? $HEAD_END /xms;
     if ( !defined $SCRIPT_VERSION ) {
         $SCRIPT_VERSION = $main::VERSION;
     }
     if ( !defined $SCRIPT_VERSION ) {
-        my $filedate = localtime((stat $0)[9]);
-        $SCRIPT_VERSION = $filedate;
+        $SCRIPT_VERSION = (-e $0) ? localtime((stat $0)[9]) : 'unknown';
     }
-    $man =~ s{ ^(=head1 $VERS    \s*) .*? (\s*) $EOHEAD }
+    $man =~ s{ ($HEAD_START $VERS    \s*) .*? (\s*) $HEAD_END }
              {$1 This document refers to $SCRIPT_NAME version $SCRIPT_VERSION $2}xms;
 
     # Extra info from PODs
     my ($options, $opt_name, $required, $req_name, $licence);
-    while ($man =~ m/^=head1 ($REQUIRED) (.*?) $EOHEAD /gxms) {
+    while ($man =~ m/$HEAD_START ($REQUIRED) (.*?) $HEAD_END /gxms) {
         # Required arguments
         my ( $more_req_name, $more_required ) = ($1, $2);
         $req_name = $more_req_name if not defined $req_name;
         $required = ( $more_required || q{} ) . ( $required || q{} );
     }
-    while ($man =~ m/^=head1 ($OPTIONS)  (.*?) $EOHEAD /gxms) {
+    while ($man =~ m/$HEAD_START ($OPTIONS)  (.*?) $HEAD_END /gxms) {
         # Optional arguments
         my ( $more_opt_name, $more_options ) = ($1, $2);
         $opt_name = $more_opt_name if not defined $opt_name;
         $options = ( $more_options || q{} ) . ( $options || q{} );
     }
-    while ($man =~ m/^=head1 [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $EOHEAD /gxms) {
+    while ($man =~ m/$HEAD_START [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $HEAD_END /gxms) {
         # License information
         my ($more_licence) = ($1, $2);
         $licence = ( $more_licence || q{} ) . ( $licence || q{} );
@@ -452,15 +450,15 @@ sub _process_prog_pod {
     }
     $arg_summary =~ s/\s+/ /gxms;
 
-    $man =~ s{ ^(=head1 $USAGE \s*) .*? (\s*) $EOHEAD }
+    $man =~ s{ ($HEAD_START $USAGE \s*) .*? (\s*) $HEAD_END }
             {$1 $SCRIPT_NAME $arg_summary $2}xms;
 
     # Insert default values (if any) in the program's documentation
     $required = _insert_default_values(\%requireds, \%requireds_hash, \@requireds_order);
     $options  = _insert_default_values(\%options  , \%options_hash  , \@options_order  );
 
-    $man =~ s{ ^(=head1 $REQUIRED \s*) .*? (\s*) $EOHEAD } {$1$required$2}xms;
-    $man =~ s{ ^(=head1 $OPTIONS  \s*) .*? (\s*) $EOHEAD } {$1$options$2}xms;
+    $man =~ s{ ($HEAD_START $REQUIRED \s*) .*? (\s*) $HEAD_END } {$1$required$2}xms;
+    $man =~ s{ ($HEAD_START $OPTIONS  \s*) .*? (\s*) $HEAD_END } {$1$options$2}xms;
 
     # Usage message
     $usage  = "       $SCRIPT_NAME $arg_summary\n";
@@ -911,7 +909,7 @@ sub _convert_to_regex {
         push @arg_variants, @{$args_ref->{$arg_name}->{variants}};
     }
     my $no_match = join('|',@arg_variants);
-####    $no_match =~ s{([@#$^*()+{}?])}{\\$1}gxms; # Quotemeta specials 
+    $no_match =~ s{([@#$^*()+{}?])}{\\$1}gxms; # Quotemeta specials 
     $no_match = '(?!'.$no_match.')';
 
 
@@ -920,7 +918,7 @@ sub _convert_to_regex {
         my $regex = $arg_name;
 
         # Quotemeta specials...
-####        $regex =~ s{([@#$^*()+{}?])}{\\$1}gxms;
+        $regex =~ s{([@#$^*()+{}?])}{\\$1}gxms;
 
         $regex = "(?:$regex)";
 
@@ -1089,7 +1087,7 @@ sub _fail {
 sub _process_pm_pod {
     my @caller = caller(2); # at import()'s level
 
-    push @pm_pods, $caller[1];
+    push @pods, $caller[1];
 
     # Install this import() sub as module's import sub...
     no strict 'refs';
@@ -1177,7 +1175,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.2.7
+This document describes Getopt::Euclid version 0.2.9
 
 =head1 SYNOPSIS
 
@@ -1203,11 +1201,13 @@ This document describes Getopt::Euclid version 0.2.7
 
     This documentation refers to yourprog version 1.9.4
 
-    =head1 USAGE
+    =head1 COMMAND-LINE INTERFACE
+
+    =head2 USAGE
 
         yourprog [options]  -s[ize]=<h>x<w>  -o[ut][file] <file>
 
-    =head1 REQUIRED ARGUMENTS
+    =head2 REQUIRED ARGUMENTS
 
     =over
 
@@ -1231,7 +1231,7 @@ This document describes Getopt::Euclid version 0.2.7
 
     =back
 
-    =head1 OPTIONS
+    =head2 OPTIONS
 
     =over
 
@@ -1316,7 +1316,7 @@ locate any POD in the same file,
 =item 2.
 
 extract information from that POD, most especially from 
-the C<=head1 REQUIRED ARGUMENTS> and C<=head1 OPTIONS> sections,
+the C<=head[1-4] REQUIRED ARGUMENTS> and C<=head[1-4] OPTIONS> sections,
 
 =item 3.
 
@@ -1434,6 +1434,8 @@ __END__ statement (like in the L<SYNOPSIS>), or interspersed in the code:
 
     =cut
 
+    # Getopt::Euclid has parsed commandline parameters and stored them in %ARGV
+
     if ($ARGV{-i}) {
         print "Interactive mode...\n";
     }
@@ -1445,7 +1447,8 @@ __END__ statement (like in the L<SYNOPSIS>), or interspersed in the code:
     }
 
 When Getopt::Euclid is loaded in a non-C<.pm> file, it searches that file for
-the following POD documentation:
+the following documentation in the POD head sections (=head1, =head2, =head3 or
+=head4):
 
 =over
 
@@ -1499,7 +1502,7 @@ See L<Specifying arguments> for details of the specification syntax.
 
 The actual headings that Getopt::Euclid can recognize here are:
 
-    =head1 [STANDARD|STD|PROGRAM|SCRIPT|CLI|COMMAND[-| ]LINE] [REQUIRED|MANDATORY] [PARAM|PARAMETER|ARG|ARGUMENT][S]
+    =head[1-4] [STANDARD|STD|PROGRAM|SCRIPT|CLI|COMMAND[-| ]LINE] [REQUIRED|MANDATORY] [PARAM|PARAMETER|ARG|ARGUMENT][S]
 
 =item =head1 OPTIONS
 
@@ -1513,7 +1516,7 @@ but there is no requirement that it supply both, or either.
 
 The actual headings that Getopt::Euclid recognizes here are:
 
-    =head1 [STANDARD|STD|PROGRAM|SCRIPT|CLI|COMMAND[-| ]LINE] OPTION[AL|S] [PARAM|PARAMETER|ARG|ARGUMENT][S]
+    =head[1-4] [STANDARD|STD|PROGRAM|SCRIPT|CLI|COMMAND[-| ]LINE] OPTION[AL|S] [PARAM|PARAMETER|ARG|ARGUMENT][S]
 
 =item =head1 COPYRIGHT
 
@@ -1628,7 +1631,7 @@ an array reference with each array entry being a hash reference.
 
 =head2 Boolean arguments
 
-If an argument has no placeholders it is treated as a boolean switch and it's
+If an argument has no placeholders it is treated as a boolean switch and its
 entry in C<%ARGV> will be true if the argument appeared in C<@ARGV>.
 
 For a boolean argument, you can also specify variations that are I<false>, if
@@ -1901,6 +1904,25 @@ Getopt::Euclid recognizes the following standard placeholder types:
                     matching the specified
                     pattern
 
+Since regular expressions are supported, you can easily match many more type of
+strings for placeholders by using the regular expressions available in Regexp::Common.
+If you do that, you may want to also use custom placeholder error messages (see
+L<Placeholder type errors>) since the messages would otherwise not be very
+informative to users.
+
+    use Regexp::Common qw /zip/;
+    use Getopt::Euclid;
+
+    ...
+
+    =item -p <postcode>
+
+    Enter your postcode here
+
+    =for Euclid:
+        postcode.type:  /$RE{zip}{France}/
+        postcode.error: <postcode> myst be a valid ZIP code
+
 =head2 Placeholder type errors
 
 If a command-line argument's placeholder value doesn't satisify the specified
@@ -1971,7 +1993,8 @@ The default value can be any valid Perl compile-time expression:
     =for Euclid:
         pi value.default: atan2(0,-1)
 
-You can refer to an argument default value in its POD entry as shown below:
+You can refer to an argument default or optional default value in its POD entry
+as shown below:
 
     =item -size <h>[x<w>]
 
@@ -1980,6 +2003,14 @@ You can refer to an argument default value in its POD entry as shown below:
     =for Euclid:
         h.default: 24
         w.default: 80
+
+    =item --debug <level>
+   
+    Set the debug level. The default is level.default if you supply --debug but
+    omit a <level> value.
+
+    =for Euclid:
+        level.opt_default: 3
 
 =head2 Exclusive placeholders
 

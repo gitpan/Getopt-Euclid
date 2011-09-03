@@ -2,7 +2,7 @@ use strict;
 use warnings;
 use Module::Build;
 
-# If you updated this, don't forget to update the Makefile.PL file as well!
+# If you updated this file, don't forget to update the Makefile.PL file as well!
 
 my $builder = Module::Build->new(
     module_name         => 'Getopt::Euclid',
@@ -23,3 +23,16 @@ my $builder = Module::Build->new(
 );
 
 $builder->create_build_script();
+
+if ( -e 'MANIFEST.SKIP' ) {
+   generate_readme( 'lib/Getopt/Euclid.pm', 'README' ); 
+}
+
+
+
+sub generate_readme {
+   my ($in, $out) = @_;
+   `pod2text $in $out`;
+   warn "Warning: Could not generate $out.\n$!\n" if $? == -1;
+   return $?; # exit status
+}

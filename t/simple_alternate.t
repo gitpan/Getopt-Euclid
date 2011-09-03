@@ -77,11 +77,19 @@ orchestrate
 
 This documentation refers to orchestrate version 1.9.4
 
-=head1 USAGE
+=head1 MANUAL
+
+The rest of this documentation describes how to use the orchestrate program 
+in a terminal
+
+=head2 USAGE
 
     orchestrate  -in source.txt  --out dest.orc  -verbose  -len=24
 
-=head1 COMMANDLINE MANDATORY ARGUMENTS
+Notice that there are mandatory and optional arguments, described in the two 
+next subsections.
+
+=head3 COMMANDLINE MANDATORY ARGUMENTS
 
 =over
 
@@ -103,7 +111,7 @@ Specify output file
 
 =back
 
-=head1 SCRIPT OPTIONAL PARAMETERS
+=head3 SCRIPT OPTIONAL PARAMETERS
 
 =over
 

@@ -45,7 +45,10 @@ This documentation refers to orchestrate version 1.9.4
 
     orchestrate  -in source.txt  --out dest.orc  -verbose  -len=24
 
-=head1 REQUIRED ARGUMENTS
+Notice that there are mandatory and optional arguments, described in the two 
+next subsections.
+
+=head2 REQUIRED ARGUMENTS
 
 =over
 
@@ -67,7 +70,7 @@ Specify output file
 
 =back
 
-=head1 OPTIONS
+=head2 OPTIONS
 
 =over
 

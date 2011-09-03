@@ -1,5 +1,11 @@
 Revision history for Getopt-Euclid
 
+0.2.9  2011-09-03
+  - This command does not generate warnings anymore:
+    perl -e 'use Getopt::Euclid; print $Getopt::Euclid::VERSION;'
+  - Required and optional arguments can now be put in a POD head section =head2,
+    =head3 and =head4 for more flexibility
+
 0.2.8  2011-09-02
   - Support for optional defaults (RT bug #61438, patch from Paolo Medeo)
   - Extended the grammar of recognized POD headers for required and optional arguments:
