@@ -71,7 +71,7 @@ __END__
 
 =head1 NAME
 
-orchestrate
+orchestrate - Convert a file to Melkor's .orc format
 
 =head1 VERSION
 
@@ -81,7 +81,7 @@ This documentation refers to orchestrate version 1.9.4
 
     orchestrate  -in source.txt  --out dest.orc  -verbose  -len=24
 
-=head1 COMMANDLINE MANDATORY ARGUMENTS
+=head1 REQUIRED ARGUMENTS
 
 =over
 
@@ -103,7 +103,11 @@ Specify output file
 
 =back
 
-=head1 SCRIPT OPTIONAL PARAMETERS
+=head1 OPTIONS
+
+=head2 General behaviour
+
+You can customize the usage of orchestrate with the following options: 
 
 =over
 
@@ -125,6 +129,17 @@ Display girth [default: 42 ]
 
 =for Euclid:
     g.default: 42
+
+=back
+
+Note however that those flags are optional: since C<orchestrate> comes with
+some sane defaults, you can fire C<orchestrate> as is.
+
+=head2 Ratings
+
+You can also take advantage of ratings if you want
+
+=over
 
 =item -v[erbose]
 

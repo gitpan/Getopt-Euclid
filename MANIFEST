@@ -51,6 +51,7 @@ t/false.t
 t/hier.t
 t/hier_export.t
 t/hier_no_pod.t
+t/ignore_decorations.t
 t/insert_defaults.t
 t/lib/HierDemo.pm
 t/lib/HierDemo.pod

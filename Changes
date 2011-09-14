@@ -1,5 +1,9 @@
 Revision history for Getopt-Euclid
 
+0.3.0
+  - Reverted feature to match POD head section =head2, =head3 and =head4 because
+    of backward compatibility issue (RT bug #70942)
+
 0.2.9  2011-09-03
   - This command does not generate warnings anymore:
     perl -e 'use Getopt::Euclid; print $Getopt::Euclid::VERSION;'

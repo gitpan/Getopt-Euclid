@@ -48,7 +48,7 @@ This documentation refers to orchestrate version 1.9.4
 Notice that there are mandatory and optional arguments, described in the two 
 next subsections.
 
-=head2 REQUIRED ARGUMENTS
+=head1 REQUIRED ARGUMENTS
 
 =over
 
@@ -70,7 +70,7 @@ Specify output file
 
 =back
 
-=head2 OPTIONS
+=head1 OPTIONS
 
 =over
 

@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.2.9');
+use version; $VERSION = qv('0.3.0');
 
 use warnings;
 use strict;
@@ -316,7 +316,7 @@ sub _process_pod {
 sub _process_prog_pod {
     # Set up parsing rules...
     my $SPACE      = qr{ [^\S\n]*               }xms;
-    my $HEAD_START = qr{ ^=head[1-4]            }xms;
+    my $HEAD_START = qr{ ^=head1                }xms;
     my $HEAD_END   = qr{ (?= $HEAD_START | \z)  }xms;
     my $POD_CMD    = qr{            = [^\W\d]\w+ [^\n]* (?= \n\n )}xms;
     my $POD_CUT    = qr{ (?! \n\n ) = cut $SPACE        (?= \n\n )}xms;
@@ -1175,7 +1175,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.2.9
+This document describes Getopt::Euclid version 0.3.0
 
 =head1 SYNOPSIS
 
@@ -1201,13 +1201,11 @@ This document describes Getopt::Euclid version 0.2.9
 
     This documentation refers to yourprog version 1.9.4
 
-    =head1 COMMAND-LINE INTERFACE
-
-    =head2 USAGE
+    =head1 USAGE
 
         yourprog [options]  -s[ize]=<h>x<w>  -o[ut][file] <file>
 
-    =head2 REQUIRED ARGUMENTS
+    =head1 REQUIRED ARGUMENTS
 
     =over
 
@@ -1231,7 +1229,7 @@ This document describes Getopt::Euclid version 0.2.9
 
     =back
 
-    =head2 OPTIONS
+    =head1 OPTIONS
 
     =over
 
@@ -1316,7 +1314,7 @@ locate any POD in the same file,
 =item 2.
 
 extract information from that POD, most especially from 
-the C<=head[1-4] REQUIRED ARGUMENTS> and C<=head[1-4] OPTIONS> sections,
+the C<=head1 REQUIRED ARGUMENTS> and C<=head1 OPTIONS> sections,
 
 =item 3.
 
@@ -1447,8 +1445,7 @@ __END__ statement (like in the L<SYNOPSIS>), or interspersed in the code:
     }
 
 When Getopt::Euclid is loaded in a non-C<.pm> file, it searches that file for
-the following documentation in the POD head sections (=head1, =head2, =head3 or
-=head4):
+the following POD documentation:
 
 =over
 
@@ -1502,7 +1499,10 @@ See L<Specifying arguments> for details of the specification syntax.
 
 The actual headings that Getopt::Euclid can recognize here are:
 
-    =head[1-4] [STANDARD|STD|PROGRAM|SCRIPT|CLI|COMMAND[-| ]LINE] [REQUIRED|MANDATORY] [PARAM|PARAMETER|ARG|ARGUMENT][S]
+    =head1 [STANDARD|STD|PROGRAM|SCRIPT|CLI|COMMAND[-| ]LINE] [REQUIRED|MANDATORY] [PARAM|PARAMETER|ARG|ARGUMENT][S]
+
+B<Caveat:> Do not put additional subheadings (=headX) inside the REQUIRED ARGUMENTS
+section.
 
 =item =head1 OPTIONS
 
@@ -1516,7 +1516,10 @@ but there is no requirement that it supply both, or either.
 
 The actual headings that Getopt::Euclid recognizes here are:
 
-    =head[1-4] [STANDARD|STD|PROGRAM|SCRIPT|CLI|COMMAND[-| ]LINE] OPTION[AL|S] [PARAM|PARAMETER|ARG|ARGUMENT][S]
+    =head1 [STANDARD|STD|PROGRAM|SCRIPT|CLI|COMMAND[-| ]LINE] OPTION[AL|S] [PARAM|PARAMETER|ARG|ARGUMENT][S]
+
+B<Caveat:> Do not put additional subheadings (=headX) inside the REQUIRED ARGUMENTS
+section.
 
 =item =head1 COPYRIGHT
 

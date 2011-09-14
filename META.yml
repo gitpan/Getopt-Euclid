@@ -30,4 +30,4 @@ resources:
   homepage: http://search.cpan.org/search?query=Getopt%3A%3AEuclid&mode=dist
   license: http://dev.perl.org/licenses/
   repository: git://getopt-euclid.git.sourceforge.net/gitroot/getopt-euclid/getopt-euclid
-version: 0.002009
+version: 0.003000

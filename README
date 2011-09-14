@@ -2,7 +2,7 @@ NAME
     Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 VERSION
-    This document describes Getopt::Euclid version 0.2.9
+    This document describes Getopt::Euclid version 0.3.0
 
 SYNOPSIS
         use Getopt::Euclid;
@@ -27,13 +27,11 @@ SYNOPSIS
 
         This documentation refers to yourprog version 1.9.4
 
-        =head1 COMMAND-LINE INTERFACE
-
-        =head2 USAGE
+        =head1 USAGE
 
             yourprog [options]  -s[ize]=<h>x<w>  -o[ut][file] <file>
 
-        =head2 REQUIRED ARGUMENTS
+        =head1 REQUIRED ARGUMENTS
 
         =over
 
@@ -57,7 +55,7 @@ SYNOPSIS
 
         =back
 
-        =head2 OPTIONS
+        =head1 OPTIONS
 
         =over
 
@@ -134,8 +132,8 @@ DESCRIPTION
 
     1.  locate any POD in the same file,
 
-    2.  extract information from that POD, most especially from the
-        "=head[1-4] REQUIRED ARGUMENTS" and "=head[1-4] OPTIONS" sections,
+    2.  extract information from that POD, most especially from the "=head1
+        REQUIRED ARGUMENTS" and "=head1 OPTIONS" sections,
 
     3.  build a parser that parses the arguments and options the POD
         specifies,
@@ -252,8 +250,7 @@ INTERFACE
         }
 
     When Getopt::Euclid is loaded in a non-".pm" file, it searches that file
-    for the following documentation in the POD head sections (=head1,
-    =head2, =head3 or =head4):
+    for the following POD documentation:
 
     =head1 NAME
         Getopt::Euclid ignores the name specified here. In fact, if you use
@@ -304,7 +301,10 @@ INTERFACE
 
         The actual headings that Getopt::Euclid can recognize here are:
 
-            =head[1-4] [STANDARD|STD|PROGRAM|SCRIPT|CLI|COMMAND[-| ]LINE] [REQUIRED|MANDATORY] [PARAM|PARAMETER|ARG|ARGUMENT][S]
+            =head1 [STANDARD|STD|PROGRAM|SCRIPT|CLI|COMMAND[-| ]LINE] [REQUIRED|MANDATORY] [PARAM|PARAMETER|ARG|ARGUMENT][S]
+
+        Caveat: Do not put additional subheadings (=headX) inside the
+        REQUIRED ARGUMENTS section.
 
     =head1 OPTIONS
         Getopt::Euclid uses the specifications in this POD section to build
@@ -319,7 +319,10 @@ INTERFACE
 
         The actual headings that Getopt::Euclid recognizes here are:
 
-            =head[1-4] [STANDARD|STD|PROGRAM|SCRIPT|CLI|COMMAND[-| ]LINE] OPTION[AL|S] [PARAM|PARAMETER|ARG|ARGUMENT][S]
+            =head1 [STANDARD|STD|PROGRAM|SCRIPT|CLI|COMMAND[-| ]LINE] OPTION[AL|S] [PARAM|PARAMETER|ARG|ARGUMENT][S]
+
+        Caveat: Do not put additional subheadings (=headX) inside the
+        REQUIRED ARGUMENTS section.
 
     =head1 COPYRIGHT
         Getopt::Euclid prints this section whenever the standard "--version"
