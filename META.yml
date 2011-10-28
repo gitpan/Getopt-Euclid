@@ -8,7 +8,7 @@ build_requires:
 configure_requires:
   ExtUtils::MakeMaker: 6.42
 distribution_type: module
-generated_by: 'Module::Install version 1.01'
+generated_by: 'Module::Install version 1.02'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -30,4 +30,4 @@ resources:
   homepage: http://search.cpan.org/search?query=Getopt%3A%3AEuclid&mode=dist
   license: http://dev.perl.org/licenses/
   repository: git://getopt-euclid.git.sourceforge.net/gitroot/getopt-euclid/getopt-euclid
-version: 0.003000
+version: 0.003000_001

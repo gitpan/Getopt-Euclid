@@ -1,5 +1,8 @@
 Revision history for Getopt-Euclid
 
+0.3.0_1
+  - Try if the CPAN indexer likes this $VERSION better
+
 0.3.0
   - Reverted feature to match POD head section =head2, =head3 and =head4 because
     of backward compatibility issue (RT bug #70942)

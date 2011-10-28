@@ -112,25 +112,29 @@ SYNOPSIS
         (see http://www.perl.com/perl/misc/Artistic.html)
 
 DESCRIPTION
-    Getopt::Euclid uses your program's own documentation to create a
-    command-line argument parser. This ensures that your program's
+    Getopt::Euclid uses your program's own POD documentation to create a
+    powerful command-line argument parser. This ensures that your program's
     documented interface and its actual interface always agree.
 
-    To use the module, you simply write:
+    The created command-line argument parser includes many features such as
+    argument type checking, required arguments, exclusive arguments,
+    optional arguments with default values, automatic usage message, ...
+
+    To use the module, simply write the following at the top of your
+    program:
 
         use Getopt::Euclid;
 
-    at the top of your program. This will cause Getopt::Euclid to be
-    required and its import method will be called. It is important that the
-    import method be allowed to run, so do not invoke Getopt::Euclid in the
-    following manner:
+    This will cause Getopt::Euclid to be require'd and its import method
+    will be called. It is important that the import method be allowed to
+    run, so do not invoke Getopt::Euclid in the following manner:
 
         # Will not work
         use Getopt::Euclid ();
 
     When the module is loaded within a regular Perl program, it will:
 
-    1.  locate any POD in the same file,
+    1.  locate any POD in the same *.pl file or its associated *.pod file.
 
     2.  extract information from that POD, most especially from the "=head1
         REQUIRED ARGUMENTS" and "=head1 OPTIONS" sections,

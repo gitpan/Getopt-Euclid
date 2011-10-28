@@ -1,6 +1,7 @@
 package Getopt::Euclid;
 
-use version; $VERSION = qv('0.3.0');
+use version 0.77;
+$VERSION = qv('0.3.0_1');
 
 use warnings;
 use strict;
@@ -1288,17 +1289,21 @@ This document describes Getopt::Euclid version 0.3.0
 
 =head1 DESCRIPTION
 
-Getopt::Euclid uses your program's own documentation to create a command-line
-argument parser. This ensures that your program's documented interface and
-its actual interface always agree.
+Getopt::Euclid uses your program's own POD documentation to create a powerful
+command-line argument parser. This ensures that your program's documented interface
+and its actual interface always agree.
 
-To use the module, you simply write:
+The created command-line argument parser includes many features such as argument
+type checking, required arguments, exclusive arguments, optional arguments with
+default values, automatic usage message, ...
+
+To use the module, simply write the following at the top of your program:
 
     use Getopt::Euclid;
 
-at the top of your program. This will cause Getopt::Euclid to be required and
-its import method will be called. It is important that the import method be
-allowed to run, so do not invoke Getopt::Euclid in the following manner:
+This will cause Getopt::Euclid to be require'd and its import method will be
+called. It is important that the import method be allowed to run, so do not
+invoke Getopt::Euclid in the following manner:
 
     # Will not work
     use Getopt::Euclid ();
@@ -1309,7 +1314,7 @@ When the module is loaded within a regular Perl program, it will:
 
 =item 1.
 
-locate any POD in the same file,
+locate any POD in the same *.pl file or its associated *.pod file.
 
 =item 2.
 
