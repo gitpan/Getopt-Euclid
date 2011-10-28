@@ -1,7 +1,7 @@
 package Getopt::Euclid;
 
 use version 0.77;
-$VERSION = qv('0.3.0_1');
+$VERSION = qv('0.3.1');
 
 use warnings;
 use strict;
@@ -265,8 +265,15 @@ sub process_args {
             my $arg_name = $long_names_hash{$opt_name};
             my $arg_info = $all_args_ref->{$arg_name};
             my $val;
-            $val = [] if $arg_info->{is_repeatable} or $arg_name =~ />\.\.\./;
-            $val = {} if keys %{ $arg_info->{var} } > 1;
+            if ( $arg_info->{is_repeatable} or $arg_name =~ />\.\.\./ ) {
+               # Empty arrayref for repeatable options
+               $val = [];
+            } else {               
+               if (keys %{ $arg_info->{var} } > 1) {
+                   # Empty hashref for non-repeatable options with multiple placeholders
+                   $val = {};
+               }
+            }
             _export_var( $vars_prefix, $opt_name, $val );
         }
     }
@@ -1058,9 +1065,9 @@ sub _longestname {
 
 sub _export_var {
     my ( $prefix, $key, $value ) = @_;
-    my $callpkg = caller(2+($Exporter::ExportLevel || 0)); # at import()'s level
     my $export_as = $prefix . $key;
     $export_as =~ s{\W}{_}gxms;    # mainly for '-'
+    my $callpkg = caller(2+($Exporter::ExportLevel || 0)); # at import()'s level
     no strict 'refs';
     *{"$callpkg\::$export_as"} = ( ref $value ) ? $value : \$value;
 }
@@ -1176,7 +1183,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.3.0
+This document describes Getopt::Euclid version 0.3.1
 
 =head1 SYNOPSIS
 
@@ -2117,6 +2124,7 @@ That is, if your program accepts the following arguments:
     --auto-fudge <factor>      (repeatable)
     --also <a>...
     --size <w>x<h>
+    --multiply <num1>x<num2>   (repeatable)
 
 Then these variables will be exported
 
@@ -2127,6 +2135,7 @@ Then these variables will be exported
     @ARGV_auto_fudge
     @ARGV_also
     %ARGV_size          # With entries $ARGV_size{w} and $ARGV_size{h}
+    @ARGV_multiply      # With entries that are hashref similar to \%ARGV_size
 
 For options that have multiple variants, only the longest variant is exported.
 

@@ -13,6 +13,7 @@ BEGIN {
         # "--missing-bool",
         # "--missing-repopt foo", "--missing-repopt bar",
         # "--missing-repval foo bar",
+        # "--missing-repoptmultpholds a:1", "--missing-repoptmultpholds b:2"
         # "--missing-hash ping,pong",
         "-i   $INFILE",
         "-out=", $OUTFILE,
@@ -87,6 +88,7 @@ is         $opt_missing_bool,  undef, 'Got $opt_missing_bool as undef and use st
 is_deeply \%opt_missing_hash,  { },   'Got %opt_missing_hash with 0 keys and use strict was happy';
 is_deeply \@opt_missing_repval, [ ],  'Got @opt_missing_repval with 0 elements and use strict was happy';
 is_deeply \@opt_missing_repopt, [ ],  'Got @opt_missing_repopt with 0 elements and use strict was happy';
+is_deeply \@opt_missing_repoptmultpholds, [ ],  'Got @opt_missing_repoptmultpholds with 0 elements and use strict was happy';
 
 
 __END__
@@ -196,6 +198,13 @@ A missing option (repeatable value)
 =item --missing-repopt <a>
 
 A missing option (repeatable option)
+
+=for Euclid:
+    repeatable
+
+=item --missing-repoptmultpholds <a>:<b>
+
+A missing option (repeatable option with multiple placeholders)
 
 =for Euclid:
     repeatable

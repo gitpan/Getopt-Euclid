@@ -2,7 +2,7 @@ NAME
     Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 VERSION
-    This document describes Getopt::Euclid version 0.3.0
+    This document describes Getopt::Euclid version 0.3.1
 
 SYNOPSIS
         use Getopt::Euclid;
@@ -893,6 +893,7 @@ INTERFACE
         --auto-fudge <factor>      (repeatable)
         --also <a>...
         --size <w>x<h>
+        --multiply <num1>x<num2>   (repeatable)
 
     Then these variables will be exported
 
@@ -903,6 +904,7 @@ INTERFACE
         @ARGV_auto_fudge
         @ARGV_also
         %ARGV_size          # With entries $ARGV_size{w} and $ARGV_size{h}
+        @ARGV_multiply      # With entries that are hashref similar to \%ARGV_size
 
     For options that have multiple variants, only the longest variant is
     exported.
