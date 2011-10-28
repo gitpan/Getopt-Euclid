@@ -24,7 +24,7 @@ requires:
   List::Util: 0
   Perl::Tidy: 0
   Text::Balanced: 0
-  version: 0
+  version: 0.77
 resources:
   bugtracker: https://rt.cpan.org/Dist/Display.html?Name=Getopt-Euclid
   homepage: http://search.cpan.org/search?query=Getopt%3A%3AEuclid&mode=dist
