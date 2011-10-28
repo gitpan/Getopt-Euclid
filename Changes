@@ -1,5 +1,8 @@
 Revision history for Getopt-Euclid
 
+0.3.2
+  - Another attempt to make the CPAN indexer happy
+
 0.3.1
   - Changed $VERSION to make the CPAN indexer happy
   - Export repeatable options with multiple placeholders as an empty arrayref,

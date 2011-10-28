@@ -14,7 +14,6 @@ resources
 
 build_requires 'Test::More'            => '0';
 
-requires       'version'               => '0.77';
 requires       'File::Basename'        => '0';
 requires       'File::Spec::Functions' => '0';
 requires       'List::Util'            => '0';
