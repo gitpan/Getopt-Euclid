@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-our $VERSION = '0.3.2';
+our $VERSION = '0.3.3';
 
 use warnings;
 use strict;
@@ -1127,7 +1127,8 @@ sub _get_pod {
         # Extract POD...
         for my $in_file (@in_files) {
             Perl::Tidy::perltidy(
-              argv        =>  [], # explicitly use no args to prevent use of @ARGV
+              #argv        =>  [], # explicitly use no args to prevent use of @ARGV
+              argv        => ['--force-read-binary'], # to help with standalone executable scripts 
               source      =>  $in_file,
               formatter   =>  $pod_extracter,
             );
@@ -1182,7 +1183,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.3.2
+This document describes Getopt::Euclid version 0.3.3
 
 =head1 SYNOPSIS
 
@@ -2185,7 +2186,7 @@ access to the string of this message.
 For --man, if the standard output stream is connected to a terminal and the
 POD::Text module is available, the POD is formatted before printing. If the
 IO::Page or IO::Pager::Page module is available, the formatted documentation is
-then paged. If standard output is not connected to a terminal or POD::Text is
+then paged. If standard output is not connected to a terminal or Pod::Text is
 not available, the POD is not formatted.
 
 =item --version  version()

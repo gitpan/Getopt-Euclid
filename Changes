@@ -1,5 +1,9 @@
 Revision history for Getopt-Euclid
 
+0.3.3
+  - Attempt to extract POD even from files that look binary (might be packaged
+    with pp, perlapp or similar program)
+
 0.3.2
   - Another attempt to make the CPAN indexer happy
 

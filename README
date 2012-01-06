@@ -2,7 +2,7 @@ NAME
     Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 VERSION
-    This document describes Getopt::Euclid version 0.3.2
+    This document describes Getopt::Euclid version 0.3.3
 
 SYNOPSIS
         use Getopt::Euclid;
@@ -952,7 +952,7 @@ INTERFACE
         and the POD::Text module is available, the POD is formatted before
         printing. If the IO::Page or IO::Pager::Page module is available,
         the formatted documentation is then paged. If standard output is not
-        connected to a terminal or POD::Text is not available, the POD is
+        connected to a terminal or Pod::Text is not available, the POD is
         not formatted.
 
     --version version()

@@ -3,12 +3,13 @@ abstract: 'Executable Uniform Command-Line Interface Descriptions'
 author:
   - 'Damian Conway (DCONWAY@CPAN.org)'
 build_requires:
-  ExtUtils::MakeMaker: 6.42
+  ExtUtils::MakeMaker: 6.36
   Test::More: 0
 configure_requires:
-  ExtUtils::MakeMaker: 6.42
+  ExtUtils::MakeMaker: 6.36
 distribution_type: module
-generated_by: 'Module::Install version 1.02'
+dynamic_config: 1
+generated_by: 'Module::Install version 1.04'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -29,4 +30,4 @@ resources:
   homepage: http://search.cpan.org/search?query=Getopt%3A%3AEuclid&mode=dist
   license: http://dev.perl.org/licenses/
   repository: git://getopt-euclid.git.sourceforge.net/gitroot/getopt-euclid/getopt-euclid
-version: 0.3.2
+version: 0.3.3
