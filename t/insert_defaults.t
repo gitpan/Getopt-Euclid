@@ -18,77 +18,77 @@ sub lucky {
 use Getopt::Euclid;
 use Test::More 'no_plan';
 
-my $help = <<END;
-=head1 Usage:
+my $help = <<EOS;
+\=head1 Usage:
 
        insert_defaults.t -o= <out_file> -i <file> [options]
        insert_defaults.t --help
        insert_defaults.t --version
 
-=head1 Required arguments:
+\=head1 Required arguments:
 
-=over
+\=over
 
-=item -i[nfile]  [=]<file>
+\=item -i[nfile]  [=]<file>
 
 Specify input file [default: -]
 
-=item -o[ut][file]= <out_file>
+\=item -o[ut][file]= <out_file>
 
 Specify output file [default: -]
 
-=back
+\=back
 
 
 
-=head1 Options:
+\=head1 Options:
 
-=over
+\=over
 
-=item size [<h>]x[<w>]
+\=item size [<h>]x[<w>]
 
 Specify height and width [optional default: 1.8 x 0.2]
 
-=item -l[[en][gths]] <l>...
+\=item -l[[en][gths]] <l>...
 
 Display lengths [default: 24 36.3 10]
 
-=item -girth <g value>
+\=item -girth <g value>
 
 Display girth [default: 42]
 
-=item -v[erbose]
+\=item -v[erbose]
 
 Print all warnings
 
-=item --timeout [<min>] [<max>]
+\=item --timeout [<min>] [<max>]
 
 [default: min=none and max=-1]
 [optional default: min=none and max=-3]
 
-=item -w <space> | --with <space>
+\=item -w <space> | --with <space>
 
 Test something spaced
 
-=item <step>
+\=item <step>
 
 Step size [default: none]
 
-=item --version
+\=item --version
 
-=item --usage
+\=item --usage
 
-=item --help
+\=item --help
 
-=item --man
+\=item --man
 
 Print the usual program information
 
-=back
+\=back
 
 
 
-END
+EOS
 
 
 my $help_test = Getopt::Euclid->help();
@@ -96,99 +96,99 @@ is $help_test, $help => 'Help has correct default values displayed';
 
 
 
-my $man =
-q{=head1 NAME
+my $man = <<EOS;
+\=head1 NAME
 
  insert_defaults.t - Convert a file to Melkor's .orc format
 
-=head1 VERSION
+\=head1 VERSION
 
  This document refers to insert_defaults.t version 1.9.4 
 
-=head1 USAGE
+\=head1 USAGE
 
      insert_defaults.t -o= <out_file> -i <file> [options] 
 
-=head1 REQUIRED ARGUMENTS
+\=head1 REQUIRED ARGUMENTS
 
-=over
+\=over
 
-=item -i[nfile]  [=]<file>
+\=item -i[nfile]  [=]<file>
 
 Specify input file [default: -]
 
-=item -o[ut][file]= <out_file>
+\=item -o[ut][file]= <out_file>
 
 Specify output file [default: -]
 
-=back
+\=back
 
 
 
-=head1 OPTIONS
+\=head1 OPTIONS
 
-=over
+\=over
 
-=item size [<h>]x[<w>]
+\=item size [<h>]x[<w>]
 
 Specify height and width [optional default: 1.8 x 0.2]
 
-=item -l[[en][gths]] <l>...
+\=item -l[[en][gths]] <l>...
 
 Display lengths [default: 24 36.3 10]
 
-=item -girth <g value>
+\=item -girth <g value>
 
 Display girth [default: 42]
 
-=item -v[erbose]
+\=item -v[erbose]
 
 Print all warnings
 
-=item --timeout [<min>] [<max>]
+\=item --timeout [<min>] [<max>]
 
 [default: min=none and max=-1]
 [optional default: min=none and max=-3]
 
-=item -w <space> | --with <space>
+\=item -w <space> | --with <space>
 
 Test something spaced
 
-=item <step>
+\=item <step>
 
 Step size [default: none]
 
-=item --version
+\=item --version
 
-=item --usage
+\=item --usage
 
-=item --help
+\=item --help
 
-=item --man
+\=item --man
 
 Print the usual program information
 
-=back
+\=back
 
 
 
-=head1 AUTHOR
+\=head1 AUTHOR
 
-Damian Conway (damian@conway.org)
+Damian Conway (damian\@conway.org)
 
-=head1 BUGS
+\=head1 BUGS
 
 There are undoubtedly serious bugs lurking somewhere in this code.
 Bug reports and other feedback are most welcome.
 
-=head1 COPYRIGHT
+\=head1 COPYRIGHT
 
 Copyright (c) 2002, Damian Conway. All Rights Reserved.
 This module is free software. It may be used, redistributed
 and/or modified under the terms of the Perl Artistic License
   (see http://www.perl.com/perl/misc/Artistic.html)
 
-};
+EOS
 
 
 my $man_test = Getopt::Euclid->man();

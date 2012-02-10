@@ -1,5 +1,12 @@
 Revision history for Getopt-Euclid
 
+0.3.x
+  - Always convert POD to text when calling help()
+  - help() is now paged if IO::Pager::Page is installed
+  - Dependency changes:
+      Pod::Simple::Text replaces Pod::Text and is required instead of recommended,
+      IO::Pager::Page is recommended
+
 0.3.3
   - Attempt to extract POD even from files that look binary (might be packaged
     with pp, perlapp or similar program)

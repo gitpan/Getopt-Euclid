@@ -1,16 +1,17 @@
 package Getopt::Euclid;
 
-our $VERSION = '0.3.3';
+use version; our $VERSION = version->declare('0.3.4_1');
 
 use warnings;
 use strict;
 use Carp;
+use Pod::Select;
+use Pod::PlainText;
 use File::Basename;
 use File::Spec::Functions qw(splitpath catpath catfile);
 use List::Util qw( first );
 use Text::Balanced qw(extract_bracketed extract_variable extract_multiple);
-use Getopt::Euclid::PodExtract;
-use Perl::Tidy;
+
 
 # Set some module variables
 my $has_run = 0;
@@ -146,7 +147,7 @@ sub process_args {
     # Handle standard args...
 
     if ( grep { / --man /xms } @$args ) {
-        _print_pod( Getopt::Euclid->man() , 'paged' );
+        _print_pod( Getopt::Euclid->man(), 'paged' );
         exit;
     }
     elsif ( first { $_ eq '--usage' } @$args ) {
@@ -154,7 +155,7 @@ sub process_args {
         exit;
     }
     elsif ( first { $_ eq '--help' } @$args ) {
-        _print_pod( Getopt::Euclid->help() );
+        _print_pod( Getopt::Euclid->help(), 'paged' );
         exit;
     }
     elsif ( first { $_ eq '--version' } @$args ) {
@@ -916,7 +917,7 @@ sub _convert_to_regex {
         push @arg_variants, @{$args_ref->{$arg_name}->{variants}};
     }
     my $no_match = join('|',@arg_variants);
-    $no_match =~ s{([@#$^*()+{}?])}{\\$1}gxms; # Quotemeta specials 
+    $no_match =~ s{([@#$^*()+{}?])}{\\$1}gxms; # Quotemeta specials
     $no_match = '(?!'.$no_match.')';
 
 
@@ -988,17 +989,15 @@ sub _convert_to_regex {
 sub _print_pod {
     my ( $pod, $paged ) = @_;
 
-    if ( -t *STDOUT and eval { require Pod::Text } ) {
-        if ($paged) {
-            eval { require IO::Page } or eval { require IO::Pager::Page };
-        }
-        open my $pod_handle, '<', \$pod;
-        my $parser = Pod::Text->new( sentence => 0, width => 78 );
-        $parser->parse_from_filehandle($pod_handle);
+    if ($paged) {
+        # Page output
+        eval { require IO::Pager::Page } or eval { require IO::Page };
     }
-    else {
-        print $pod;
-    }
+  
+    # Convert POD to plaintext, wrapping the lines at 76 chars and print to STDOUT
+    open my $parser_in, '<', \$pod or die "Could not read from variable:\n$!\n";
+    Pod::PlainText->new()->parse_from_filehandle($parser_in);
+    close $parser_in;
 
 }
 
@@ -1115,26 +1114,27 @@ sub _get_pod {
     my (@perl_files) = @_;  # e.g. .pl, .pm or .t files
 
     my $pod_string = '';
-    my $pod_extracter = Getopt::Euclid::PodExtract->new(\$pod_string);
+    open my $pod_fh, '>', \$pod_string or die "Error: Could not open filehandle to variable:\n$!\n";
     for my $perl_file (@perl_files) {
 
-        # Get corresponding .pod file
+        # Find corresponding .pod file
         my ($name, $path, $suffix) = fileparse($perl_file, qr/\.[^.]*/);
         my $pod_file = catfile( $path, $name.'.pod' );
-        my @in_files = ($perl_file);
-        push @in_files, $pod_file if ( -e $pod_file );
-    
-        # Extract POD...
-        for my $in_file (@in_files) {
-            Perl::Tidy::perltidy(
-              #argv        =>  [], # explicitly use no args to prevent use of @ARGV
-              argv        => ['--force-read-binary'], # to help with standalone executable scripts 
-              source      =>  $in_file,
-              formatter   =>  $pod_extracter,
-            );
-            $pod_string .= "\n" if $pod_string;
+
+        # Get POD either from .pod file (preferably) or from Perl file
+        if ( -e $pod_file ) {
+            # Get .pod file content
+            open my $in, '<', $pod_file or die "Could not open file $pod_file:\n$!\n";
+            print $pod_fh $_ while <$in>;
+            close $in;
+        } else {
+            # Parse POD content of Perl file
+            podselect( {-output => $pod_fh}, $perl_file );
         }
+        print $pod_fh "\n" if $pod_string;
+
     }
+    close $pod_fh;
 
     return $pod_string;
 }
@@ -2430,6 +2430,18 @@ Getopt::Euclid requires no configuration files or environment variables.
 
 =item *
 
+version
+
+=item *
+
+Pod::Select
+
+=item *
+
+Pod::PlainText
+
+=item *
+
 File::Basename
 
 =item *
@@ -2446,7 +2458,7 @@ Text::Balanced
 
 =item *
 
-Perl::Tidy
+IO::Pager::Page (recommended)
 
 =back
 

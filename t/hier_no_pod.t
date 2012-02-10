@@ -16,23 +16,24 @@ use Test::More 'no_plan';
 is keys %ARGV, 6 => 'Right number of args returned';
 
 # Manual should contain POD from .pl and .pm files
-my $man = '=head1 REQUIRED ARGUMENTS
+my $man = <<EOS;
+\=head1 REQUIRED ARGUMENTS
 
-=over
+\=over
 
-=item -i[nfile]  [=]<file>
+\=item -i[nfile]  [=]<file>
 
 Specify input file
 
-=item -o[ut][file]= <file>
+\=item -o[ut][file]= <file>
 
 Specify output file
 
-=back
+\=back
 
 
 
-';
+EOS
 
 my $man_test = Getopt::Euclid->man();
 is $man_test, $man, 'Man page is as expected';

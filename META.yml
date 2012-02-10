@@ -19,15 +19,19 @@ no_index:
   directory:
     - inc
     - t
+recommends:
+  IO::Pager::Page: 0
 requires:
   File::Basename: 0
   File::Spec::Functions: 0
   List::Util: 0
-  Perl::Tidy: 0
+  Pod::PlainText: 0
+  Pod::Select: 0
   Text::Balanced: 0
+  version: 0
 resources:
   bugtracker: https://rt.cpan.org/Dist/Display.html?Name=Getopt-Euclid
   homepage: http://search.cpan.org/search?query=Getopt%3A%3AEuclid&mode=dist
   license: http://dev.perl.org/licenses/
   repository: git://getopt-euclid.git.sourceforge.net/gitroot/getopt-euclid/getopt-euclid
-version: 0.3.3
+version: 0.003004_001

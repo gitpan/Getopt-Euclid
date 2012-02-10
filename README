@@ -1159,6 +1159,12 @@ CONFIGURATION AND ENVIRONMENT
     Getopt::Euclid requires no configuration files or environment variables.
 
 DEPENDENCIES
+    *   version
+
+    *   Pod::Select
+
+    *   Pod::PlainText
+
     *   File::Basename
 
     *   File::Spec::Functions
@@ -1167,7 +1173,7 @@ DEPENDENCIES
 
     *   Text::Balanced
 
-    *   Perl::Tidy
+    *   IO::Pager::Page (recommended)
 
 INCOMPATIBILITIES
     Getopt::Euclid may not work properly with POD in Perl files that have

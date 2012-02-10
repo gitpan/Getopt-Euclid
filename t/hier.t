@@ -56,60 +56,61 @@ is $ARGV{size}{h}, $H           => 'Got expected value for size <h>';
 is $ARGV{size}{w}, $W           => 'Got expected value for size <w>';
 
 # Manual should contain POD from .pl and .pm files
-my $man = '=head1 NAME
+my $man = <<EOS;
+=head1 NAME
 
  hier.t - Convert a file to Melkor\'s .orc format
 
-=head1 VERSION
+\=head1 VERSION
 
  This document refers to hier.t version 1.9.4 
 
-=head1 USAGE
+\=head1 USAGE
 
      hier.t -o= <file> -i <file> [options] 
 
-=head1 OPTIONS
+\=head1 OPTIONS
 
-=over
+\=over
 
-=item size <h>x<w>
+\=item size <h>x<w>
 
 Specify height and width
 
-=item -l[[en][gth]] <l>
+\=item -l[[en][gth]] <l>
 
 Display length [default: 24 ]
 
-=item -v[erbose]
+\=item -v[erbose]
 
 Print all warnings
 
-=item --timeout [<min>] [<max>]
+\=item --timeout [<min>] [<max>]
 
-=item --version
+\=item --version
 
-=item --usage
+\=item --usage
 
-=item --help
+\=item --help
 
-=item --man
+\=item --man
 
 Print the usual program information
 
-=back
+\=back
 
 
 
-=head1 AUTHOR
+\=head1 AUTHOR
 
-Damian Conway (damian@conway.org)
+Damian Conway (damian\@conway.org)
 
-=head1 BUGS
+\=head1 BUGS
 
 There are undoubtedly serious bugs lurking somewhere in this code.
 Bug reports and other feedback are most welcome.
 
-=head1 COPYRIGHT
+\=head1 COPYRIGHT
 
 Copyright (c) 2002, Damian Conway. All Rights Reserved.
 This module is free software. It may be used, redistributed
@@ -117,23 +118,24 @@ and/or modified under the terms of the Perl Artistic License
   (see http://www.perl.com/perl/misc/Artistic.html)
 
 
-=head1 REQUIRED ARGUMENTS
+\=head1 REQUIRED ARGUMENTS
 
-=over
+\=over
 
-=item -i[nfile]  [=]<file>
+\=item -i[nfile]  [=]<file>
 
 Specify input file
 
-=item -o[ut][file]= <file>
+\=item -o[ut][file]= <file>
 
 Specify output file
 
-=back
+\=back
 
 
 
-';
+EOS
+
 
 my $man_test = Getopt::Euclid->man();
 is $man_test, $man, 'Man page is as expected';
@@ -209,3 +211,4 @@ Copyright (c) 2002, Damian Conway. All Rights Reserved.
 This module is free software. It may be used, redistributed
 and/or modified under the terms of the Perl Artistic License
   (see http://www.perl.com/perl/misc/Artistic.html)
+

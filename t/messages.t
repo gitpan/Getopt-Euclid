@@ -14,194 +14,194 @@ use Getopt::Euclid qw( :minimal_keys );
 use Test::More 'no_plan';
 
 
-my $man =
-q{=head1 NAME
+my $man = <<EOS;
+\=head1 NAME
 
  messages.t - Convert a file to Melkor's .orc format
 
-=head1 SYNOPSIS
+\=head1 SYNOPSIS
 
-   my $var = 'asdf';
+   my \$var = 'asdf';
 
-=head1 VERSION
+\=head1 VERSION
 
  This document refers to messages.t version 1.9.4 
 
-=head1 USAGE
+\=head1 USAGE
 
      messages.t -o= <out_file> -i <file> [options] 
 
-=head1 REQUIRED ARGUMENTS
+\=head1 REQUIRED ARGUMENTS
 
-=over
+\=over
 
-=item -i[nfile]  [=]<file>
+\=item -i[nfile]  [=]<file>
 
 Specify input file
 
-=item -o[ut][file]= <out_file>
+\=item -o[ut][file]= <out_file>
 
 Specify output file
 
-=back
+\=back
 
 
 
-=head1 OPTIONS
+\=head1 OPTIONS
 
-=over
+\=over
 
-=item size <h>x<w>
+\=item size <h>x<w>
 
 Specify height and width
 
-=item -l[[en][gth]] <l>
+\=item -l[[en][gth]] <l>
 
 Display length [default: 24 ]
 
-=item -girth <g>
+\=item -girth <g>
 
 Display girth [default: 42 ]
 
-=item -v[erbose]
+\=item -v[erbose]
 
 Print all warnings
 
-=item [-]-timeout [<min>] [<max>]
+\=item [-]-timeout [<min>] [<max>]
 
-=item -w <space>
+\=item -w <space>
 
 Test something spaced
 
-=item [-]-no[-fudge]
+\=item [-]-no[-fudge]
 
 Automaticaly fudge the factors.
 
-=item <step>
+\=item <step>
 
 Step size
 
-=item --version
+\=item --version
 
-=item --usage
+\=item --usage
 
-=item --help
+\=item --help
 
-=item --man
+\=item --man
 
 Print the usual program information
 
-=back
+\=back
 
 
 
-=head1 AUTHOR
+\=head1 AUTHOR
 
-Damian Conway (damian@conway.org)
+Damian Conway (damian\@conway.org)
 
-=head1 BUGS
+\=head1 BUGS
 
 There are undoubtedly serious bugs lurking somewhere in this code.
 Bug reports and other feedback are most welcome.
 
-=head1 COPYRIGHT
+\=head1 COPYRIGHT
 
 Copyright (c) 2002, Damian Conway. All Rights Reserved.
 This module is free software. It may be used, redistributed
 and/or modified under the terms of the Perl Artistic License
   (see http://www.perl.com/perl/misc/Artistic.html)
 
-};
+EOS
 
 
-my $help =
-q{=head1 Usage:
+my $help = <<EOS;
+\=head1 Usage:
 
        messages.t -o= <out_file> -i <file> [options]
        messages.t --help
        messages.t --version
 
-=head1 Required arguments:
+\=head1 Required arguments:
 
-=over
+\=over
 
-=item -i[nfile]  [=]<file>
+\=item -i[nfile]  [=]<file>
 
 Specify input file
 
-=item -o[ut][file]= <out_file>
+\=item -o[ut][file]= <out_file>
 
 Specify output file
 
-=back
+\=back
 
 
 
-=head1 Options:
+\=head1 Options:
 
-=over
+\=over
 
-=item size <h>x<w>
+\=item size <h>x<w>
 
 Specify height and width
 
-=item -l[[en][gth]] <l>
+\=item -l[[en][gth]] <l>
 
 Display length [default: 24 ]
 
-=item -girth <g>
+\=item -girth <g>
 
 Display girth [default: 42 ]
 
-=item -v[erbose]
+\=item -v[erbose]
 
 Print all warnings
 
-=item [-]-timeout [<min>] [<max>]
+\=item [-]-timeout [<min>] [<max>]
 
-=item -w <space>
+\=item -w <space>
 
 Test something spaced
 
-=item [-]-no[-fudge]
+\=item [-]-no[-fudge]
 
 Automaticaly fudge the factors.
 
-=item <step>
+\=item <step>
 
 Step size
 
-=item --version
+\=item --version
 
-=item --usage
+\=item --usage
 
-=item --help
+\=item --help
 
-=item --man
+\=item --man
 
 Print the usual program information
 
-=back
+\=back
 
 
 
-};
+EOS
 
-my $usage =
-'Usage:
+my $usage = <<EOS;
+Usage:
        messages.t -o= <out_file> -i <file> [options]
        messages.t --help
        messages.t --version
-';
+EOS
 
-my $version =
-'This is messages.t version 1.9.4
+my $version = <<EOS;
+This is messages.t version 1.9.4
 
 Copyright (c) 2002, Damian Conway. All Rights Reserved.
 This module is free software. It may be used, redistributed
 and/or modified under the terms of the Perl Artistic License
   (see http://www.perl.com/perl/misc/Artistic.html)
-';
+EOS
 
 
 my $man_test = Getopt::Euclid->man();
