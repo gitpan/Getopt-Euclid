@@ -2,7 +2,7 @@ NAME
     Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 VERSION
-    This document describes Getopt::Euclid version 0.3.3
+    This document describes Getopt::Euclid version 0.3.4
 
 SYNOPSIS
         use Getopt::Euclid;
@@ -258,16 +258,16 @@ INTERFACE
 
     =head1 NAME
         Getopt::Euclid ignores the name specified here. In fact, if you use
-        the standard "--help", "--usage", "--man", or "--version" arguments
-        (see "Standard arguments"), the module replaces the name specified
-        in this POD section with the actual name by which the program was
-        invoked (i.e. with $0).
+        the standard "--help", "--usage", "--man", "--podfile", or
+        "--version" arguments (see "Standard arguments"), the module
+        replaces the name specified in this POD section with the actual name
+        by which the program was invoked (i.e. with $0).
 
     =head1 USAGE
         Getopt::Euclid ignores the usage line specified here. If you use the
-        standard "--help", "--usage", or "--man" arguments, the module
-        replaces the usage line specified in this POD section with a usage
-        line that reflects the actual interface that the module has
+        standard "--help", "--usage", "--man" or "--podfile" arguments, the
+        module replaces the usage line specified in this POD section with a
+        usage line that reflects the actual interface that the module has
         constructed.
 
     =head1 VERSION
@@ -938,22 +938,28 @@ INTERFACE
         access to the string of this message.
 
     --help help()
-        The --help argument causes the program to print a longer usage
-        summary (with a full list of required and optional arguments) and
-        exit. The "Getopt::Euclid-"help()> subroutine provides access to the
-        string of this message.
+        The --help argument causes the program to take a longer usage
+        summary (with a full list of required and optional arguments)
+        provided in POD format by "help()", convert it to plaintext, display
+        it and exit. The message is paged using IO::Pager::Page (or
+        IO::Page) if possible.
 
     --man man()
-        The --man argument causes the program to print the complete POD
-        documentation for the program and exit. The "Getopt::Euclid-"man()>
-        subroutine provides access to the string of this message.
+        The --man argument causes the program to take the POD documentation
+        for the program, provided by "man()", convert it to plaintext,
+        display it and exit. The message is paged using IO::Pager::Page (or
+        IO::Page) if possible.
 
-        For --man, if the standard output stream is connected to a terminal
-        and the POD::Text module is available, the POD is formatted before
-        printing. If the IO::Page or IO::Pager::Page module is available,
-        the formatted documentation is then paged. If standard output is not
-        connected to a terminal or Pod::Text is not available, the POD is
-        not formatted.
+    --podfile podfile()
+        The --podfile argument is provided for authors. It causes the
+        program to take the POD manual from "man()", write it in a .pod file
+        with the same base name as the program, display the name of the
+        output file and exit. These actions can also be executed by calling
+        the "podfile()" subroutine.This argument is not really a standard
+        argument, but it is useful if the program's POD is to be passed to a
+        POD converter because, among other things, any default value
+        specified is interpolated and replaced by its value in the .pod
+        file, contrary to in the program's .pl file.
 
     --version version()
         The --version argument causes the program to print the version

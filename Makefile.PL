@@ -14,6 +14,7 @@ resources
 
 # Perl core modules
 build_requires 'Test::More'            => 0;
+build_requires 'Pod::Checker'          => 0;
 
 requires       'version'               => 0,
 requires       'Pod::Select'           => 0;

@@ -21,7 +21,7 @@ BEGIN {
     chmod 0644, $0;
 }
 
-use t::lib::HierDemo;
+use t::lib::HierDemo2;
 use Test::More 'no_plan';
 
 sub got_arg {
@@ -59,15 +59,15 @@ is $ARGV{size}{w}, $W           => 'Got expected value for size <w>';
 my $man = <<EOS;
 =head1 NAME
 
-hier.t - Convert a file to Melkor\'s .orc format
+hier2.t - Convert a file to Melkor\'s .orc format
 
 \=head1 VERSION
 
-This document refers to hier.t version 1.9.4 
+This document refers to hier2.t version 1.9.4 
 
 \=head1 USAGE
 
-    hier.t -o= <file> -i <file> [options] 
+    hier2.t -o= <file> -i <file> [options] 
 
 \=head1 OPTIONS
 
@@ -131,6 +131,7 @@ Specify input file
 Specify output file
 
 \=back
+
 
 
 

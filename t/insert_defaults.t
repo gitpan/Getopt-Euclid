@@ -99,15 +99,15 @@ is $help_test, $help => 'Help has correct default values displayed';
 my $man = <<EOS;
 \=head1 NAME
 
- insert_defaults.t - Convert a file to Melkor's .orc format
+insert_defaults.t - Convert a file to Melkor's .orc format
 
 \=head1 VERSION
 
- This document refers to insert_defaults.t version 1.9.4 
+This document refers to insert_defaults.t version 1.9.4 
 
 \=head1 USAGE
 
-     insert_defaults.t -o= <out_file> -i <file> [options] 
+    insert_defaults.t -o= <out_file> -i <file> [options] 
 
 \=head1 REQUIRED ARGUMENTS
 

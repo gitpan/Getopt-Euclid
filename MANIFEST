@@ -48,13 +48,14 @@ t/fail_user_constraint_comma.t
 t/fail_user_constraint_type.t
 t/false.t
 t/hier.t
+t/hier2.t
 t/hier_export.t
 t/hier_no_pod.t
 t/ignore_decorations.t
 t/insert_defaults.t
 t/lib/HierDemo.pm
 t/lib/HierDemo.pod
-t/messages.t
+t/lib/HierDemo2.pm
 t/minimal.t
 t/opt_default.t
 t/pod.t
@@ -68,6 +69,7 @@ t/repeated.t
 t/simple.t
 t/simple_alternate.t
 t/simple_shuffle.t
+t/std_arguments.t
 t/types.t
 t/types_regex.t
 t/types_vars.t

@@ -12,6 +12,7 @@ my $builder = Module::Build->new(
 
     build_requires      => {
         'Test::More'            => 0,
+        'Pod::Checker'          => 0,
     },
 
     requires            => {

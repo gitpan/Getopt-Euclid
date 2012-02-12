@@ -1,10 +1,14 @@
 Revision history for Getopt-Euclid
 
-0.3.x
-  - Always convert POD to text when calling help()
+0.3.4
+  - New standard argument --podfile to write the manual in a .pod file
+  - Fixed issue where the NAME and VERSION sections appeared as a verbatim
+    section (which podchecker complains about)
+  - Always convert POD to text when calling help() and man()
   - help() is now paged if IO::Pager::Page is installed
   - Dependency changes:
-      Pod::Simple::Text replaces Pod::Text and is required instead of recommended,
+      Pod::Simple::Text replaces Pod::Text
+      Pod::Simple::Text is required instead of recommended,
       IO::Pager::Page is recommended
 
 0.3.3
