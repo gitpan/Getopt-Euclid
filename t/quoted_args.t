@@ -1,9 +1,14 @@
 BEGIN {
     @ARGV = (
-        "-e1with space1",
-        "-e2", "with space2",
-        "-e3", "with", "space3",
+        '-e1with space1',
+        '-e2', 'with space2',
+        '-e3', 'with',
+        'space3',
     );
+    # This is equivalent to running:
+    #    quoted_args.t -e1"with space1" -e2 "with space2" -e3 with space3
+    # or:
+    #    quoted_args.t -e1with\ space1 -e2 with\ space2 -e3 with space3
 }
 
 use Getopt::Euclid;

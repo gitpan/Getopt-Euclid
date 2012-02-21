@@ -3,8 +3,8 @@ BEGIN {
     $OUTFILE = $0;
 
     @ARGV = (
-        "-i   $INFILE",
-        "-out=", $OUTFILE,
+        '-i', $INFILE,
+        "-out=$OUTFILE",
     );
 
     chmod 0644, $0;

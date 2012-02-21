@@ -6,12 +6,12 @@ BEGIN {
     $TIMEOUT = 7;
 
     @ARGV = (
-        "-i   $INFILE",
-        "-out=", $OUTFILE,
-        "-lgth",
-        "size ${H}x${W}",
+        '-i', $INFILE,
+        "-out=$OUTFILE",
+        '-lgth',
+        'size', "${H}x${W}",
         '-v',
-        "--timeout $TIMEOUT",
+        '--timeout', $TIMEOUT,
         '--with', 's p a c e s',
         7,
     );

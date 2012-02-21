@@ -8,9 +8,9 @@ BEGIN {
 
     @ARGV = (
         "-io",
-        "size ${H}x${W}",
-        "-vl $LEN",
-        "--timeout $TIMEOUT",
+        'size', "${H}x${W}",
+        '-vl', $LEN,
+        '--timeout', $TIMEOUT,
     );
 }
 

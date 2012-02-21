@@ -2,7 +2,7 @@ NAME
     Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 VERSION
-    This document describes Getopt::Euclid version 0.3.4
+    This document describes Getopt::Euclid version 0.3.5
 
 SYNOPSIS
         use Getopt::Euclid;
@@ -960,6 +960,13 @@ INTERFACE
         POD converter because, among other things, any default value
         specified is interpolated and replaced by its value in the .pod
         file, contrary to in the program's .pl file.
+
+        If you want to automate the creation of a POD file during the build
+        process, you can edit you Makefile.PL or Build.PL file and add these
+        lines:
+
+           my @args = ($^X, '-Ilib', '/path/to/script', '--podfile');
+           system(@args) == 0 or die "System call to '@args' failed:\n$?\n";
 
     --version version()
         The --version argument causes the program to print the version

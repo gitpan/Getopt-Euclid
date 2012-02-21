@@ -1,11 +1,11 @@
 BEGIN {
     @ARGV = (
-        "-a 1 2 3",
-        "-d", "string",
-        "-c", "test1", "test2",
-        "-b 4 5 6",
-        "Why not",
-        "eat at", "Joes",
+        '-a', 1, 2, 3,
+        '-d', 'string',
+        '-c', 'test1', 'test2',
+        '-b', 4, 5, 6,
+        'Why not',
+        'eat at', 'Joes',
     );
 }
 

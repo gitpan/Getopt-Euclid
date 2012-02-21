@@ -1,11 +1,12 @@
 package Getopt::Euclid;
 
-use version; our $VERSION = version->declare('0.3.4');
+use version; our $VERSION = version->declare('0.3.5');
 
 use warnings;
 use strict;
 use 5.005000; # perl 5.5.0
 use Carp;
+use re 'eval'; # for matcher regex
 use Pod::Select;
 use Pod::PlainText;
 use File::Basename;
@@ -158,14 +159,8 @@ sub process_args {
     %ARGV = ();
 
     # Handle standard args...
-
-    if ( grep { / --man /xms } @$args ) {
+    if ( first { $_ eq '--man' } @$args ) {
         _print_pod( Getopt::Euclid->man(), 'paged' );
-        exit;
-    }
-    elsif ( first { $_ eq '--podfile' } @$args ) {
-        my $podfile = podfile( );
-        print "Wrote manual in file $podfile\n";
         exit;
     }
     elsif ( first { $_ eq '--usage' } @$args ) {
@@ -180,13 +175,18 @@ sub process_args {
         print Getopt::Euclid->version();
         exit;
     }
+    elsif ( first { $_ eq '--podfile' } @$args ) {
+        # Option meant for authors
+        my $podfile = podfile( );
+        print "Wrote POD manual in file $podfile\n";
+        exit;
+    }
 
     # Subroutine to report problems during parsing...
-
     *_bad_arglist = sub {
         my (@msg) = @_;
         my $msg = join q{}, @msg;
-        $msg =~ tr/\0\1/ \t/;
+        $msg = _rectify_arg($msg);
         $msg =~ s/\n?\z/\n/xms;
         warn "$msg(Try this for usage help : $SCRIPT_NAME --help)\n".
                  "(Try this for full manual: $SCRIPT_NAME --man )\n\n";
@@ -194,18 +194,15 @@ sub process_args {
     };
 
     # Run matcher...
-
+    my $argv = join( q{ }, map { $_ = _escape_arg($_) } @$args );
     my $all_args_ref = { %options_hash, %requireds_hash };
-    my $argv = 
-      join( q{ }, map { my $arg = $_; $arg =~ tr/ \t/\0\1/; $arg } @$args );
     if ( my $error = _doesnt_match( $matcher, $argv, $all_args_ref ) ) {
         _bad_arglist($error);
     }
 
-    # Check all requireds have been found...
-
+    # Check that all requireds have been found...
     my @missing;
-    for my $req ( keys %requireds_hash ) {
+    while ( my ($req) = each %requireds_hash ) {
         push @missing, "\t$req\n" if !exists $ARGV{$req};
     }
     _bad_arglist(
@@ -215,27 +212,20 @@ sub process_args {
     ) if @missing;
 
     # Back-translate \0-quoted spaces and \1-quoted tabs...
-
-    _rectify_args();
+    _rectify_all_args();
 
     # Check exclusive variables, variable constraints and fill in defaults...
-
     _verify_args($all_args_ref);
 
     # Clean up @$args since everything must have been parsed
- 
     @$args = ();
 
     # Clean up %ARGV
-
     for my $arg_name ( keys %ARGV ) {
 
         # Flatten non-repeatables...
-
         my $vals = delete $ARGV{$arg_name};
-
         my $repeatable = $all_args_ref->{$arg_name}{is_repeatable};
-
         if ($repeatable) {
             pop @{$vals};
         }
@@ -249,10 +239,9 @@ sub process_args {
               : $val                     # Otherwise keep hash
               ;
             my $false_vals = $all_args_ref->{$arg_name}{false_vals};
-            my @variants   = _get_variants($arg_name);
             my %vars_opt_vals;
 
-            for my $arg_flag (@variants) {
+            for my $arg_flag ( _get_variants($arg_name) ) {
                 my $variant_val = $val;
                 if ( $false_vals && $arg_flag =~ m{\A $false_vals \z}xms ) {
                     $variant_val = $variant_val ? 0 : 1;
@@ -278,9 +267,8 @@ sub process_args {
 
     if ($vars_prefix) {
 
-        # export any unspecified options to keep use strict happy
-        for my $opt_name ( keys %long_names_hash ) {
-            my $arg_name = $long_names_hash{$opt_name};
+        # Export any unspecified options to keep use strict happy
+        while ( my ($opt_name, $arg_name) = each %long_names_hash ) {
             my $arg_info = $all_args_ref->{$arg_name};
             my $val;
             if ( $arg_info->{is_repeatable} or $arg_name =~ />\.\.\./ ) {
@@ -492,10 +480,10 @@ sub _process_prog_pod {
     $usage .= "       $SCRIPT_NAME --version\n";
 
     # Help message
-    $help  = "=head1 \L\uUsage:\E\E\n\n$usage\n";
-    $help .= "=head1 \L\u$req_name:\E\E\n\n$required\n\n"
+    $help  = "=head1 \L\uUsage:\E\n\n$usage\n";
+    $help .= "=head1 \L\u$req_name:\E\n\n$required\n\n"
       if ( $req_name || q{} ) =~ /\S/;
-    $help .= "=head1 \L\u$opt_name:\E\E\n\n$options\n\n"
+    $help .= "=head1 \L\u$opt_name:\E\n\n$options\n\n"
       if ( $opt_name || q{} ) =~ /\S/;
 
     $usage  = "Usage:\n".$usage;
@@ -592,7 +580,7 @@ sub _process_euclid_specs {
                 }
                 elsif ( length $constraint ) {
                     $arg->{var}{$var}{constraint_desc} = $constraint;
-                    $arg->{var}{$var}{constraint} =
+                    $arg->{var}{$var}{constraint} = 
                       eval "sub{ \$_[0] $constraint }"
                       or _fail("Invalid .type constraint: $spec\n($@)");
                 }
@@ -647,9 +635,9 @@ sub _process_euclid_specs {
 
     # Validate and complete .excludes specs
     for my $arg ( @args ) {
-        for my $var (keys %{$arg->{var}}) {
+        while ( my ($var, $var_specs) = each %{$arg->{var}} ) {
             # Check for invalid placeholder name in .excludes specifications
-            for my $excl_var (@{$arg->{var}{$var}{excludes}}) {
+            for my $excl_var (@{$var_specs->{excludes}}) {
                 if (not exists $var_list{$excl_var}) {
                     _fail( "Invalid .excludes value for variable <$var>: ".
                         "<$excl_var> does not exist\n" );
@@ -658,12 +646,13 @@ sub _process_euclid_specs {
             # Fill in placeholders that are excluded by others
             if ( exists $excluded_by{$var} ) {
               my $mut_var = $excluded_by{$var};
-              push @{$arg->{var}{$var}{excluded_by}}, $mut_var;
+              push @{$var_specs->{excluded_by}}, $mut_var;
             }
         }
     }
 
 }
+
 
 sub _process_constraints {
     # In constraints that use a variable, replace the variable name by its value
@@ -683,6 +672,7 @@ sub _process_constraints {
     $constraints_processed = 1;
 }
 
+
 sub _minimize_name {
     my ($name) = @_;
     $name =~ s{[][]}{}gxms;                      # remove all square brackets
@@ -691,11 +681,12 @@ sub _minimize_name {
     return $name;
 }
 
+
 sub _minimize_entries_of {
     my ($arg_ref) = @_;
     return if ref $arg_ref ne 'HASH';
 
-    for my $old_key ( keys %{$arg_ref} ) {
+    while ( my ($old_key) = each %{$arg_ref} ) {
         my $new_key = _minimize_name($old_key);
         $arg_ref->{$new_key} = delete $arg_ref->{$old_key};
     }
@@ -703,18 +694,20 @@ sub _minimize_entries_of {
     return;
 }
 
-# Do match, recursively trying to expand cuddles...
 
+# Do match, recursively trying to expand cuddles...
 sub _doesnt_match {
-    use re 'eval';
     my ( $matcher, $argv, $arg_specs_ref ) = @_;
 
-    our @errors;
+    our @errors; # 'our' instead of 'my' because it's needed for the re pragma
     local @errors = ();
     %ARGV = ();
 
+    # Match arguments, populate %ARGV and @errors
+    # Note that the matcher needs the pragma: use re 'eval';
     $argv =~ m{\A (?: \s* $matcher )* \s* \z}xms;
 
+    # Report errors in passed arguments
     for my $error (@errors) {
         if ( $error =~ m/\A ((\W) (\w) (\w+))/xms ) {
             my ( $bundle, $marker, $firstchar, $chars ) = ( $1, $2, $3, $4 );
@@ -739,30 +732,46 @@ sub _doesnt_match {
     return;    # No error
 }
 
-sub _rectify_args {
-    for my $arg_list ( values %ARGV ) {
+
+sub _escape_arg {
+    my $arg = shift;
+    my ($num_replaced) = ($arg =~ tr/ \t/\0\1/);
+    return $arg;
+}
+
+
+sub _rectify_arg {
+    my $arg = shift;
+    my ($num_replaced) = ($arg =~ tr/\0\1/ \t/);
+    return $arg;
+}
+
+
+sub _rectify_all_args {
+    while ( my (undef, $arg_list) = each %ARGV ) {
         for my $arg ( @{$arg_list} ) {
             if ( ref $arg eq 'HASH' ) {
                 for my $var ( values %{$arg} ) {
                     if ( ref $var eq 'ARRAY' ) {
-                        tr/\0\1/ \t/ for @{$var};
+                        $var = [ map { _rectify_arg($_) } @{$var} ];
                     }
                     else {
-                        tr/\0\1/ \t/ for $var;
+                        $var = _rectify_arg($var);
                     }
                 }
             }
             else {
                 if ( ref $arg eq 'ARRAY' ) {
-                    tr/\0\1/ \t/ for @{$arg};
+                    $arg = [ map { _rectify_arg($_) } @{$arg} ];
                 }
                 else {
-                    tr/\0\1/ \t/ for $arg;
+                    $arg = _rectify_arg($arg);
                 }
             }
         }
     }
 }
+
 
 sub _verify_args {
     my ($arg_specs_ref) = @_;
@@ -770,20 +779,18 @@ sub _verify_args {
 
     # Handle mutually exclusive arguments
     my %seen_vars; 
-    for my $arg_name (keys %ARGV) {
-        for my $elem (@{$ARGV{$arg_name}}) {
-            for my $var_name (keys %$elem) {
+    while ( my ($arg_name, $arg_elems) = each %ARGV ) {
+        for my $elem (@{$arg_elems}) {
+            while ( my ($var_name) = each (%{$elem}) ) {
                 $seen_vars{$var_name} = $arg_name if $var_name;
             }
         }
     }
-    for my $arg_name ( keys %{$arg_specs_ref} ) {
-        my $arg = $arg_specs_ref->{$arg_name};
-        for my $var_name ( keys %{$arg->{var}} ) {
-            my $var = $arg->{var}->{$var_name};
+    while ( my ($arg_name, $arg) = each %{$arg_specs_ref} ) {
+        while ( my ($var_name, $var) = each %{$arg->{var}} ) {
             # Enforce placeholders that cannot be specified with others
             for my $excluded_var ( @{$var->{excludes}} ) {
-                if (exists $seen_vars{$var_name} &&
+                if (exists $seen_vars{$var_name} && 
                     exists $seen_vars{$excluded_var}) {
                     my $excl_arg = $seen_vars{$excluded_var};
                     my $msg;
@@ -821,25 +828,25 @@ sub _verify_args {
 
     # Enforce constraints and fill in defaults...
   ARG:
-    for my $arg_name ( keys %{$arg_specs_ref} ) {
+    while (my ($arg_name, $arg_specs) = each %{$arg_specs_ref} ) {
 
         # Skip non-existent/non-defaulting/non-optional-defaulting arguments
         next ARG
           if !exists $ARGV{$arg_name}
-              && !(   $arg_specs_ref->{$arg_name}{has_default}
-                   || $arg_specs_ref->{$arg_name}{has_opt_default} );
+              && !(   $arg_specs->{has_default}
+                   || $arg_specs->{has_opt_default} );
 
         # Ensure all vars exist within arg...
-        my @vars = keys %{$arg_specs_ref->{$arg_name}{placeholders}};
+        my @vars = keys %{$arg_specs->{placeholders}};
         for my $index ( 0 .. $#{ $ARGV{$arg_name} } ) {
             my $entry = $ARGV{$arg_name}[$index];
             @{$entry}{@vars} = @{$entry}{@vars};
 
             # Get arg specs...
-            my $arg_vars = $arg_specs_ref->{$arg_name}{var};
-
           VAR:
             for my $var (@vars) {
+
+                my $arg_vars = $arg_specs->{var}->{$var};
 
                 # Check constraints on vars...
                 if ( exists $ARGV{$arg_name} ) {
@@ -852,11 +859,11 @@ sub _verify_args {
                             : $entry->{$var}
                           )
                         {
-                            if ( $arg_vars->{$var}{constraint} &&
-                                !$arg_vars->{$var}{constraint}->($val) ) {
+                            if ( $arg_vars->{constraint} &&
+                                !$arg_vars->{constraint}->($val) ) {
                                 _bad_arglist( _type_error($arg_name, $var, $val,
-                                    $arg_vars->{$var}->{constraint_desc},
-                                    $arg_vars->{$var}->{type_error}) );
+                                    $arg_vars->{constraint_desc},
+                                    $arg_vars->{type_error}) );
                             }
                         }
                         next VAR;
@@ -870,11 +877,11 @@ sub _verify_args {
                             : $entry
                           )
                         {
-                            if ( $arg_vars->{$var}{constraint} &&
-                                !$arg_vars->{$var}{constraint}->($val) ) {
+                            if ( $arg_vars->{constraint} &&
+                                !$arg_vars->{constraint}->($val) ) {
                                 _bad_arglist( _type_error( $arg_name, $var, $val,
-                                    $arg_vars->{$var}->{constraint_desc},
-                                    $arg_vars->{$var}->{type_error}) );
+                                    $arg_vars->{constraint_desc},
+                                    $arg_vars->{type_error}) );
                             }
                             $entry->{$var} = ''
                               unless defined( $ARGV{$arg_name} );
@@ -885,25 +892,25 @@ sub _verify_args {
 
                 # Assign placeholder defaults (if necessary)...
                 next ARG
-                  if   !exists $arg_specs_ref->{$arg_name}{var}{$var}{default}
-                    && !exists $arg_specs_ref->{$arg_name}{var}{$var}{opt_default};
+                  if   !exists $arg_vars->{default}
+                    && !exists $arg_vars->{opt_default};
 
-                $entry->{$var} = exists $arg_specs_ref->{$arg_name}{var}{$var}{opt_default} ?
-                                 $arg_specs_ref->{$arg_name}{var}{$var}{opt_default} :
-                                 $arg_specs_ref->{$arg_name}{var}{$var}{default};
+                $entry->{$var} = exists $arg_vars->{opt_default} ?
+                                 $arg_vars->{opt_default} :
+                                 $arg_vars->{default};
             }
         }
 
         # Handle defaults for missing args...
         if ( !@{ $ARGV{$arg_name} } ) {
             for my $var (@vars) {
-
                 # Assign defaults (if necessary)...
+                my $arg_vars = $arg_specs->{var}->{$var};
                 next ARG
-                  if !exists $arg_specs_ref->{$arg_name}{var}{$var}{default};
+                  if !exists $arg_vars->{default};
 
                 $ARGV{$arg_name}[0]{$var} =
-                  $arg_specs_ref->{$arg_name}{var}{$var}{default};
+                  $arg_vars->{default};
             }
         }
     }
@@ -930,52 +937,49 @@ sub _convert_to_regex {
     my ($args_ref) = @_;
 
     # Regexp to capture the start of a new argument
+    my $no_esc_ws = '(?!\0|\1)'; # no escaped whitespaces
     my @arg_variants;
-    for my $arg_name ( keys %{$args_ref} ) {
-        push @arg_variants, @{$args_ref->{$arg_name}->{variants}};
+    while ( my ($arg_name, $arg_specs) = each %{$args_ref} ) {
+        push @arg_variants, @{$arg_specs->{variants}};
     }
     my $no_match = join('|',@arg_variants);
-    $no_match =~ s{([@#$^*()+{}?])}{\\$1}gxms; # Quotemeta specials
-    $no_match = '(?!'.$no_match.')';
+    $no_match = _escape_specials($no_match);
+    $no_match = '(?!(?:'.$no_match.')'.$no_esc_ws.')';
 
-
-    for my $arg_name ( keys %{$args_ref} ) {
-        my $arg   = $args_ref->{$arg_name};
+    while ( my ($arg_name, $arg) = each %{$args_ref} ) {
         my $regex = $arg_name;
 
         # Quotemeta specials...
-        $regex =~ s{([@#$^*()+{}?])}{\\$1}gxms;
-
+        $regex = _escape_specials($regex);
         $regex = "(?:$regex)";
 
         # Convert optionals...
         1 while $regex =~ s/ \[ ([^]]*) \] /(?:$1)?/gxms;
-
-        $regex =~ s/ (\s+) /$1.'[\\s\\0\\1]*'/egxms;
+        $regex =~ s/ (\s+) /$1.'\s*'.$no_esc_ws/egxms;
         my $generic = $regex;
 
-
         # Set the matcher
-        $regex =~ s{ < (.*?) >(\.\.\.|) }
-                   { my ($var_name, $var_rep) = ($1, $2);
-                     $var_name =~ s/(\s+)\[\\s\\0\\1]\*/$1/gxms;
-                     my $type = $arg->{var}{$var_name}{type} || q{};
-                     $arg->{placeholders}->{$var_name} = undef;
-                     my $matcher = $type =~ m{\A\s*/.*/\s*\z}xms
-                                        ? eval "qr$type"
-                                        : $STD_MATCHER_FOR{ $type }
-                         or _fail("Unknown type ($type) in specification: $arg_name");
-                     $var_rep              ? "(?:[\\s\\0\\1]*$no_match($matcher)(?{push \@{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}}}, \$^N}))+"
-                     :
-                     "(?:($matcher)(?{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}} = \$^N}))"
-                   }gexms
-          or do {
-            $regex .= "(?{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{}} = 1})";
-          };
+        $regex =~
+            s{ < (.*?) >(\.\.\.|) }
+             { my ($var_name, $var_rep) = ($1, $2);
+               $var_name =~ s/(\s+)\[\\s\\0\\1]\*/$1/gxms;
+               my $type = $arg->{var}{$var_name}{type} || q{};
+               $arg->{placeholders}->{$var_name} = undef;
+               my $matcher =
+                   $type =~ m{\A\s*/.*/\s*\z}xms
+                   ? eval "qr$type"
+                   : $STD_MATCHER_FOR{ $type }
+                   or _fail("Unknown type ($type) in specification: $arg_name");
+               $var_rep ?
+                 "(?:[\\s\\0\\1]*$no_match($matcher)(?{push \@{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}}}, \$^N}))+"
+                 : "(?:($matcher)(?{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}} = \$^N}))";
+             }gexms
+             or do {
+                 $regex .= "(?{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{}} = 1})";
+             };
 
         if ( $arg->{is_repeatable} ) {
-            $arg->{matcher} =
-"$regex (?:(?<!\\w)|(?!\\w)) (?{push \@{\$ARGV{q{$arg_name}}}, {} })";
+            $arg->{matcher} = "$regex (?:(?<!\\w)|(?!\\w)) (?{push \@{\$ARGV{q{$arg_name}}}, {} })";
         }
         else {
             $arg->{matcher} = "(??{exists\$ARGV{q{$arg_name}}?'(?!)':''}) "
@@ -987,21 +991,30 @@ sub _convert_to_regex {
         }
 
         # Set the generic matcher
-        $generic =~ s{ < (.*?) > }
-                     { my $var_name = $1;
-                       $var_name =~ s/(\s+)\[\\s\\0\\1]\*/$1/gxms;
-                       my $type = $arg->{var}{$var_name}{type} || q{};
-                       my $type_error = $arg->{var}{$var_name}{type_error} || q{};
-                       my $matcher = $type =~ m{\A\s*/.*/\s*\z}xms
-                                        ? eval "qr$type"
-                                        : $STD_MATCHER_FOR{ $type };
-                       "(?:($matcher|([^\\s\\0\\1]+)"
-                       . "(?{\$bad_type ||= "
-                       . "{arg=>q{$arg_name},type=>q{$type},type_error=>q{$type_error}, var=>q{<$var_name>},val=>\$^N};})))"
-                     }gexms;
+        $generic =~
+            s{ < (.*?) > }
+             { my $var_name = $1;
+               $var_name =~ s/(\s+)\[\\s\\0\\1]\*/$1/gxms;
+               my $type = $arg->{var}{$var_name}{type} || q{};
+               my $type_error = $arg->{var}{$var_name}{type_error} || q{};
+               my $matcher = $type =~ m{\A\s*/.*/\s*\z}xms
+                                ? eval "qr$type"
+                                : $STD_MATCHER_FOR{ $type };
+               "(?:($matcher|([^\\s\\0\\1]+)"
+               . "(?{\$bad_type ||= "
+               . "{arg=>q{$arg_name},type=>q{$type},type_error=>q{$type_error}, var=>q{<$var_name>},val=>\$^N};})))"
+             }gexms;
         $arg->{generic_matcher} = $generic;
     }
     return;
+}
+
+
+sub _escape_specials {
+    # Escape quotemeta special characters
+    my $arg = shift;
+    $arg =~ s{([@#$^*()+{}?])}{\\$1}gxms;
+    return $arg;
 }
 
 
@@ -1077,9 +1090,11 @@ sub _get_variants {
     return keys %variants;
 }
 
+
 sub _longestname {
     return ( sort { length $a <=> length $b || $a cmp $b } @_ )[-1];
 }
+
 
 sub _export_var {
     my ( $prefix, $key, $value ) = @_;
@@ -1090,18 +1105,20 @@ sub _export_var {
     *{"$callpkg\::$export_as"} = ( ref $value ) ? $value : \$value;
 }
 
+
 # Utility sub to factor out hash key aliasing...
 sub _make_equivalent {
     my ( $hash_ref, %alias_hash ) = @_;
 
     while ( my ( $name, $aliases ) = each %alias_hash ) {
-        foreach my $alias (@$aliases) {
+        for my $alias (@$aliases) {
             $hash_ref->{$alias} = $hash_ref->{$name};
         }
     }
 
     return;
 }
+
 
 # Report problems in specification...
 sub _fail {
@@ -1177,10 +1194,8 @@ sub _insert_default_values {
         $item_spec =~ s/=for(.*)//ms;
         $pod_string .= "=item $item_name\n\n";
         # Get list of variable for this argument
-        my @var_names = keys %{$args->{$item_name}->{var}};
-        for my $var_name (@var_names) {
+        while ( my ($var_name, $var) = each %{$args->{$item_name}->{var}} ) {
             # Get default for this variable
-            my $var = $args->{$item_name}->{var}->{$var_name};
             for my $default_type ( 'default', 'opt_default' ) {
                 my $var_default;
                 if (exists $var->{$default_type}) {
@@ -1212,7 +1227,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.3.4
+This document describes Getopt::Euclid version 0.3.5
 
 =head1 SYNOPSIS
 
@@ -2222,6 +2237,12 @@ really a standard argument, but it is useful if the program's POD is to be
 passed to a POD converter because, among other things, any default value
 specified is interpolated and replaced by its value in the .pod file, contrary
 to in the program's .pl file.
+
+If you want to automate the creation of a POD file during the build process, you
+can edit you Makefile.PL or Build.PL file and add these lines:
+
+   my @args = ($^X, '-Ilib', '/path/to/script', '--podfile');
+   system(@args) == 0 or die "System call to '@args' failed:\n$?\n";
 
 =item --version  version()
 

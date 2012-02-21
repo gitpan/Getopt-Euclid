@@ -7,12 +7,12 @@ BEGIN {
     $TIMEOUT = 7;
 
     @ARGV = (
-        "-i   $INFILE",
-        "-out=", $OUTFILE,
-        "-lgth $LEN",
-        "size ${H}x${W}",
+        '-i', $INFILE,
+        "-out=$OUTFILE",
+        '-lgth', $LEN,
+        'size', "${H}x${W}",
         '-v',
-        "--timeout $TIMEOUT",
+        '--timeout', $TIMEOUT,
     );
 
     chmod 0644, $0;

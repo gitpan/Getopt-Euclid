@@ -16,10 +16,10 @@ BEGIN {
 
     @ARGV = (
         '-v',
-        "size ${H}x${W}",
-        "-i   $INFILE",
-        "-lgth $LEN",
-        "--timeout $TIMEOUT",
+        'size', "${H}x${W}",
+        '-i', $INFILE,
+        '-lgth', $LEN,
+        '--timeout', $TIMEOUT,
     );
 }
 

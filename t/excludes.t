@@ -31,12 +31,12 @@ $TIMEOUT = 7;
 
 # Validate first set of args (exclusive params)
 @argv = (
-    "-i   $INFILE",
-    "-out=", $OUTFILE,
-    "-lgth $LEN",
-    "size ${H}x${W}",
+    '-i', $INFILE,
+    "-out=$OUTFILE",
+    '-lgth', $LEN,
+    'size', "${H}x${W}",
     '-v',
-    "--timeout $TIMEOUT",
+    '--timeout', $TIMEOUT,
     7,
 );
 
@@ -48,11 +48,11 @@ if (eval { Getopt::Euclid->process_args(\@argv); 1 }) {
 
 # Validate second set of args (other exclusive params)
 @argv = (
-    "-i   $INFILE",
-    "-out=", $OUTFILE,
-    "-lgth $LEN",
+    '-i', $INFILE,
+    "-out=$OUTFILE",
+    '-lgth', $LEN,
     '-v',
-    "--timeout $TIMEOUT",
+    '--timeout', $TIMEOUT,
     '--with', 's p a c e s',
     7,
 );
@@ -66,10 +66,10 @@ if (eval { Getopt::Euclid->process_args(\@argv); 1 }) {
 
 # Validate third set of args (exclusive default values)
 @argv = (
-    "-i   $INFILE",
-    "-out=", $OUTFILE,
+    '-i', $INFILE,
+    "-out=$OUTFILE",
     '-v',
-    "--timeout $TIMEOUT",
+    '--timeout', $TIMEOUT,
     7,
 );
 Getopt::Euclid->process_args(\@argv);
@@ -79,11 +79,11 @@ got_no_arg 'size';
 
 # Validate fourth set of args (more exclusive default values)
 @argv = (
-    "-i   $INFILE",
-    "-out=", $OUTFILE,
-    "size ${H}x${W}",
+    '-i', $INFILE,
+    '-out=$OUTFILE',
+    'size', "${H}x${W}",
     '-v',
-    "--timeout $TIMEOUT",
+    '--timeout', $TIMEOUT,
     7,
 );
 Getopt::Euclid->process_args(\@argv);

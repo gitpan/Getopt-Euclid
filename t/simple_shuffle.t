@@ -8,11 +8,11 @@ BEGIN {
 
     @ARGV = (
         '-v',
-        "-out=", $OUTFILE,
-        "size ${H}x${W}",
-        "-i   $INFILE",
-        "--timeout $TIMEOUT",
-        "-lgth $LEN",
+        "-out=$OUTFILE",
+        'size', "${H}x${W}",
+        '-i', $INFILE,
+        '--timeout', $TIMEOUT,
+        '-lgth', $LEN,
     );
 }
 

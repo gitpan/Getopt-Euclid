@@ -7,16 +7,14 @@ BEGIN {
     $TIMEOUT = 7;
 
     @ARGV = (
-        "-i   $INFILE",
-        "-out=",
-        $OUTFILE,
-        "-lgth $LEN",
-        "size ${H}x${W}",
+        '-i', $INFILE,
+        "-out=$OUTFILE",
+        '-lgth', $LEN,
+        'size', "${H}x${W}",
         '-no-fudge',
         '-v',
-        "--timeout $TIMEOUT",
-        '-w',
-        's p a c e s',
+        '--timeout', $TIMEOUT,
+        '-w', 's p a c e s',
         7,
     );
 
@@ -26,7 +24,7 @@ BEGIN {
 use Getopt::Euclid qw( :defer );
 use Test::More 'no_plan';
 
-is scalar @ARGV, 11 => '@ARGV processing was defered';
+is scalar @ARGV, 14 => '@ARGV processing was defered';
 is keys %ARGV, 0 => '%ARGV processing was defered';
 
 Getopt::Euclid->process_args(\@ARGV);

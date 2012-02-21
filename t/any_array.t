@@ -5,10 +5,10 @@ BEGIN {
     $TIMEOUT = 7;
 
     @ARGV = (
-        "-lgth $LEN",
-        "size ${H}x${W}",
+        '-lgth', $LEN,
+        'size', "${H}x${W}",
         '-v',
-        "--timeout $TIMEOUT",
+        '--timeout', $TIMEOUT,
     );
 
     @args = @ARGV;

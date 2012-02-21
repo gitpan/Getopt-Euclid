@@ -1,11 +1,11 @@
 BEGIN {
     @ARGV = (
-        "--alpha   aaa",
-        "--beta    0.8",
-        "--gamma   123",
-        "--delta   asdf",
-        "--epsilon abcdef",
-        "--mu      256"
+        '--alpha'  , 'aaa',
+        '--beta'   , '0.8',
+        '--gamma'  , '123',
+        '--delta'  , 'asdf',
+        '--epsilon', 'abcdef',
+        '--mu'     , '256'
     );
 }
 

@@ -7,18 +7,18 @@ BEGIN {
     $TIMEOUT = 7;
 
     @ARGV = (
-        "-i   $INFILE",
-        "-out=", $OUTFILE,
-        "-lgth $LEN",
-        "-lgth " . (1+$LEN),
-        "-lgth " . $LEN*2,
-        "size ${H}x${W}",
+        '-i', $INFILE,
+        "-out=$OUTFILE",
+        '-lgth',  $LEN,
+        '-lgth', ($LEN+1),
+        '-lgth',  $LEN*2,
+        'size', "${H}x${W}",
         '-v',
         '-v',
         '-v',
         '-v',
         '-v',
-        "--timeout $TIMEOUT",
+        '--timeout', $TIMEOUT,
         '-w', 's p a c e s',
         7,
     );

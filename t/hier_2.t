@@ -10,12 +10,12 @@ BEGIN {
     $TIMEOUT = 7;
 
     @ARGV = (
-        "-i   $INFILE",
-        "-out=", $OUTFILE,
-        "-lgth $LEN",
-        "size ${H}x${W}",
+        '-i', $INFILE,
+        "-out=$OUTFILE",
+        '-lgth', $LEN,
+        'size', "${H}x${W}",
         '-v',
-        "--timeout $TIMEOUT",
+        '--timeout', $TIMEOUT,
     );
 
     chmod 0644, $0;
@@ -59,15 +59,15 @@ is $ARGV{size}{w}, $W           => 'Got expected value for size <w>';
 my $man = <<EOS;
 =head1 NAME
 
-hier2.t - Convert a file to Melkor\'s .orc format
+hier_2.t - Convert a file to Melkor\'s .orc format
 
 \=head1 VERSION
 
-This document refers to hier2.t version 1.9.4 
+This document refers to hier_2.t version 1.9.4 
 
 \=head1 USAGE
 
-    hier2.t -o= <file> -i <file> [options] 
+    hier_2.t -o= <file> -i <file> [options] 
 
 \=head1 OPTIONS
 
