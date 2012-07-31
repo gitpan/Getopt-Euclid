@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; our $VERSION = version->declare('0.3.5');
+use version; our $VERSION = version->declare('0.3.6');
 
 use warnings;
 use strict;
@@ -284,10 +284,12 @@ sub process_args {
         }
     }
 
+
     if ($minimal_keys) {
         _minimize_entries_of( \%ARGV );
     }
 
+    return 1;
 }
 
 # # # # # # # # Utility subs # # # # # # # #
@@ -507,6 +509,7 @@ sub _process_prog_pod {
 
     $matcher = '(?:' . $matcher . ')';
 
+    return 1;
 }
 
 
@@ -686,7 +689,7 @@ sub _minimize_entries_of {
     my ($arg_ref) = @_;
     return if ref $arg_ref ne 'HASH';
 
-    while ( my ($old_key) = each %{$arg_ref} ) {
+    for my $old_key (keys %$arg_ref) {
         my $new_key = _minimize_name($old_key);
         $arg_ref->{$new_key} = delete $arg_ref->{$old_key};
     }
@@ -1227,7 +1230,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.3.5
+This document describes Getopt::Euclid version 0.3.6
 
 =head1 SYNOPSIS
 
@@ -1980,7 +1983,7 @@ informative to users.
 
     =for Euclid:
         postcode.type:  /$RE{zip}{France}/
-        postcode.error: <postcode> myst be a valid ZIP code
+        postcode.type.error: <postcode> must be a valid ZIP code
 
 =head2 Placeholder type errors
 

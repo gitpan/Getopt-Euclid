@@ -23,12 +23,12 @@ is ref $ARGV{'-b'}{rest}, 'ARRAY'   => 'Array reference returned for -b{rest}';
 is $ARGV{'-b'}{rest}[0],  5         => 'Got expected value for -b{rest}[0]';
 is $ARGV{'-b'}{rest}[1],  6         => 'Got expected value for -b{rest}[1]';
 
-is ref $ARGV{'-c'}, 'ARRAY'         => 'Array reference returned for -a';
-is $ARGV{'-c'}[0],  'test1'         => 'Got expected value for -a[0]';
-is $ARGV{'-c'}[1],  'test2'         => 'Got expected value for -a[1]';
+is ref $ARGV{'-c'}, 'ARRAY'         => 'Array reference returned for -c';
+is $ARGV{'-c'}[0],  'test1'         => 'Got expected value for -c[0]';
+is $ARGV{'-c'}[1],  'test2'         => 'Got expected value for -c[1]';
 
-is ref $ARGV{'-d'}, 'ARRAY'         => 'Array reference returned for -a';
-is $ARGV{'-d'}[0],  'string'         => 'Got expected value for -a[0]';
+is ref $ARGV{'-d'}, 'ARRAY'         => 'Array reference returned for -d';
+is $ARGV{'-d'}[0],  'string'        => 'Got expected value for -d[0]';
 
 isnt ref $ARGV{'<file>'}, 'ARRAY'   => 'Array reference not returned for <file>';
 is $ARGV{'<file>'},       'Why not' => 'Got expected value for <file>';

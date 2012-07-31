@@ -2,7 +2,7 @@ NAME
     Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 VERSION
-    This document describes Getopt::Euclid version 0.3.5
+    This document describes Getopt::Euclid version 0.3.6
 
 SYNOPSIS
         use Getopt::Euclid;
@@ -709,7 +709,7 @@ INTERFACE
 
         =for Euclid:
             postcode.type:  /$RE{zip}{France}/
-            postcode.error: <postcode> myst be a valid ZIP code
+            postcode.type.error: <postcode> must be a valid ZIP code
 
   Placeholder type errors
     If a command-line argument's placeholder value doesn't satisify the
