@@ -1,5 +1,9 @@
 Revision history for Getopt-Euclid
 
+0.3.7
+  - Fixed too enthusiastic variable interpolation in Euclid specs (RT bug #78854)
+  - Fixed bug tracker URL (credits to Kent Fredric)
+
 0.3.6
   - Fixed occasional non-minimized entry when using :minimal_keys specifier
 

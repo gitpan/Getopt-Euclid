@@ -2,7 +2,7 @@ NAME
     Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 VERSION
-    This document describes Getopt::Euclid version 0.3.6
+    This document describes Getopt::Euclid version 0.3.7
 
 SYNOPSIS
         use Getopt::Euclid;
@@ -1197,7 +1197,7 @@ INCOMPATIBILITIES
 BUGS AND LIMITATIONS
     Please report any bugs or feature requests to
     "bug-getopt-euclid@rt.cpan.org", or through the web interface at
-    <http://rt.cpan.org>.
+    <https://rt.cpan.org/Public/Dist/Display.html?Name=Getopt-Euclid>.
 
     Getopt::Euclid has a development repository on Sourceforge.net at
     <http://sourceforge.net/scm/?type=git&group_id=259291> in which the code

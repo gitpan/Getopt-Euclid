@@ -9,7 +9,7 @@ all_from       'lib/Getopt/Euclid.pm';
 
 resources
    homepage    'http://search.cpan.org/search?query=Getopt%3A%3AEuclid&mode=dist';
-   bugtracker  'https://rt.cpan.org/Dist/Display.html?Name=Getopt-Euclid';
+   bugtracker  'https://rt.cpan.org/Public/Dist/Display.html?Name=Getopt-Euclid';
    repository  'git://getopt-euclid.git.sourceforge.net/gitroot/getopt-euclid/getopt-euclid';
 
 # Perl core modules

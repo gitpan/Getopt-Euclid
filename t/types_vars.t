@@ -1,11 +1,13 @@
 BEGIN {
     @ARGV = (
-        '--alpha'  , 'aaa',
-        '--beta'   , '0.8',
-        '--gamma'  , '123',
-        '--delta'  , 'asdf',
-        '--epsilon', 'abcdef',
-        '--mu'     , '256'
+        '--alpha'   , 'aaa',
+        '--beta'    , '0.8',
+        '--gamma'   , '123',
+        '--delta'   , 'asdf',
+        '--epsilon' , 'abcdef',
+        '--mu'      , '256',
+        '--price'   , '$10',
+        '--distance', 'km',
     );
 }
 
@@ -32,12 +34,14 @@ $Package::EXIT_STATUS = 0;
 Getopt::Euclid->process_args(\@ARGV);
 
 
-is $ARGV{'--alpha'},   'aaa'   ;
-is $ARGV{'--beta'} ,    0.8    ;
-is $ARGV{'--gamma'},    123    ;
-is $ARGV{'--delta'},   'asdf'  ;
-is $ARGV{'--epsilon'}, 'abcdef';
-is $ARGV{'--mu'},       256    ;
+is $ARGV{'--alpha'},    'aaa'   ;
+is $ARGV{'--beta'} ,     0.8    ;
+is $ARGV{'--gamma'},     123    ;
+is $ARGV{'--delta'},    'asdf'  ;
+is $ARGV{'--epsilon'},  'abcdef';
+is $ARGV{'--mu'},        256    ;
+is $ARGV{'--price'},    '$10'   ;
+is $ARGV{'--distance'}, 'km'    ;
 
 __END__
 
@@ -80,5 +84,14 @@ __END__
 =for Euclid
    mu.type: number, mu != $Package::EXIT_STATUS
 
+=item --price <price>
+
+=for Euclid
+     price.type: string, price eq '$10'
+
+=item --distance <distance>
+
+=for Euclid
+   distance.type: /km$/
 
 =back
