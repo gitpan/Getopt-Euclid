@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; our $VERSION = version->declare('0.3.7');
+use version; our $VERSION = version->declare('0.3.8');
 
 use warnings;
 use strict;
@@ -188,8 +188,8 @@ sub process_args {
         my $msg = join q{}, @msg;
         $msg = _rectify_arg($msg);
         $msg =~ s/\n?\z/\n/xms;
-        warn "$msg(Try this for usage help : $SCRIPT_NAME --help)\n".
-                 "(Try this for full manual: $SCRIPT_NAME --man )\n\n";
+        warn "$msg\nTry this for usage help: $SCRIPT_NAME --help\n".
+                   "Or this for full manual: $SCRIPT_NAME --man\n\n";
         exit 2;    # Traditional "bad arg list" value
     };
 
@@ -412,29 +412,25 @@ sub _process_prog_pod {
     }
 
     # Extract the actual interface...
-    my %requireds;
-    my @requireds_order;
+    my @requireds_arr;
     while ( ( $required || q{} ) =~ m{ $EUCLID_ARG }gxms ) {
-        push @requireds_order, $1;
-        $requireds{$1} = $2;
+        push @requireds_arr, [$1, $2];
     }
-    my %options;
-    my @options_order;
+    my @options_arr;
     while ( ( $options  || q{} ) =~ m{ $EUCLID_ARG }gxms ) {
-        push @options_order, $1;
-        $options{$1} = $2;
+        push @options_arr, [$1, $2];
     }
 
     # Convert each arg entry to a hash...
-    my $seq_num = 0;
     my %seen;
-    for my $pair( [\%requireds, \%requireds_hash],
-                  [\%options, \%options_hash]      ) {
+    for my $pair( [\@requireds_arr, \%requireds_hash],
+                  [\@options_arr  , \%options_hash  ]  ) {
         my ($spec, $storage) = @$pair;
-        while ( my ($name, $spec) = each %$spec ) {
+        for my $seq (0 .. scalar @$spec - 1) {
+            my ($name, $spec) = @{$spec->[$seq]};
             my @variants = _get_variants($name);
             $$storage{$name} = {
-                seq      => $seq_num++,
+                seq      => $seq,
                 src      => $spec,
                 name     => $name,
                 variants => \@variants,
@@ -455,9 +451,7 @@ sub _process_prog_pod {
     _process_euclid_specs( values(%requireds_hash), values(%options_hash) );
 
     # Build one-line representation of interface...
-    my $arg_summary = join ' ',
-      sort { $requireds_hash{$a}{seq} <=> $requireds_hash{$b}{seq} }
-      keys %requireds_hash;
+    my $arg_summary = join ' ', (map { $_->[0] } @requireds_arr);
     1 while $arg_summary =~ s/\[ [^][]* \]//gxms;
 
     if ($opt_name) {
@@ -467,11 +461,11 @@ sub _process_prog_pod {
     $arg_summary =~ s/\s+/ /gxms;
 
     $man =~ s{ ($HEAD_START $USAGE \s*) .*? (\s*) $HEAD_END }
-            {$1$SCRIPT_NAME $arg_summary $2}xms;
+            {$1$SCRIPT_NAME $arg_summary$2}xms;
 
     # Insert default values (if any) in the program's documentation
-    $required = _insert_default_values(\%requireds, \%requireds_hash, \@requireds_order);
-    $options  = _insert_default_values(\%options  , \%options_hash  , \@options_order  );
+    $required = _insert_default_values(\%requireds_hash, \@requireds_arr);
+    $options  = _insert_default_values(\%options_hash  , \@options_arr  );
 
     $man =~ s{ ($HEAD_START $REQUIRED \s*) .*? (\s*) $HEAD_END } {$1$required$2}xms;
     $man =~ s{ ($HEAD_START $OPTIONS  \s*) .*? (\s*) $HEAD_END } {$1$options$2}xms;
@@ -479,6 +473,8 @@ sub _process_prog_pod {
     # Usage message
     $usage  = "       $SCRIPT_NAME $arg_summary\n";
     $usage .= "       $SCRIPT_NAME --help\n";
+    $usage .= "       $SCRIPT_NAME --man\n";
+    $usage .= "       $SCRIPT_NAME --usage\n";
     $usage .= "       $SCRIPT_NAME --version\n";
 
     # Help message
@@ -500,10 +496,8 @@ sub _process_prog_pod {
     # Build matcher...
     my @arg_list = ( values(%requireds_hash), values(%options_hash) );
     $matcher = join '|', map { $_->{matcher} }
-      sort( { $b->{name} cmp $a->{name} } grep { $_->{name} =~ /^[^<]/ }
-          @arg_list ),
-      sort( { $a->{seq} <=> $b->{seq} } grep { $_->{name} =~ /^[<]/ }
-          @arg_list );
+      sort( { $b->{name} cmp $a->{name} } grep { $_->{name} =~ /^[^<]/ } @arg_list ),
+      sort( { $a->{seq}  <=> $b->{seq}  } grep { $_->{name} =~ /^[<]/  } @arg_list );
 
     $matcher .= '|(?> (.+)) (?{ push @errors, $^N }) (?!)';
 
@@ -1230,10 +1224,10 @@ sub _get_pod {
 
 
 sub _insert_default_values {
-    my ($pod_items, $args, $order) = @_;
+    my ($args, $order) = @_;
     my $pod_string = '';
-    for my $item_name (@$order) {
-        my $item_spec = $$pod_items{$item_name};
+    for my $item (@$order) {
+        my ($item_name, $item_spec) = @$item;
         $item_spec =~ s/=for(.*)//ms;
         $pod_string .= "=item $item_name\n\n";
         # Get list of variable for this argument
@@ -1270,7 +1264,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.3.7
+This document describes Getopt::Euclid version 0.3.8
 
 =head1 SYNOPSIS
 
@@ -2286,6 +2280,10 @@ can edit you Makefile.PL or Build.PL file and add these lines:
 
    my @args = ($^X, '-Ilib', '/path/to/script', '--podfile');
    system(@args) == 0 or die "System call to '@args' failed:\n$?\n";
+
+If you use L<Module::Install> to bundle your script, you might be interested in
+using L<Module::Install::PodFromEuclid> to include the --podfile step into the
+installation process.
 
 =item --version  version()
 

@@ -58,6 +58,7 @@ t/lib/HierDemo.pm
 t/lib/HierDemo.pod
 t/lib/HierDemo2.pm
 t/minimal.t
+t/minimal_2.t
 t/opt_default.t
 t/pod.t
 t/pod_cmd_after_cut.t
@@ -76,3 +77,4 @@ t/types.t
 t/types_regex.t
 t/types_vars.t
 t/vars_export.t
+TODO

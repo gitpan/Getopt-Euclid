@@ -67,7 +67,7 @@ This document refers to hier.t version 1.9.4
 
 \=head1 USAGE
 
-    hier.t -o= <file> -i <file> [options] 
+    hier.t -i <file> -o= <file> [options]
 
 \=head1 OPTIONS
 

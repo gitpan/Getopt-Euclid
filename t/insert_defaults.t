@@ -21,8 +21,10 @@ use Test::More 'no_plan';
 my $help = <<EOS;
 \=head1 Usage:
 
-       insert_defaults.t -o= <out_file> -i <file> [options]
+       insert_defaults.t -i <file> -o= <out_file> [options]
        insert_defaults.t --help
+       insert_defaults.t --man
+       insert_defaults.t --usage
        insert_defaults.t --version
 
 \=head1 Required arguments:
@@ -107,7 +109,7 @@ This document refers to insert_defaults.t version 1.9.4
 
 \=head1 USAGE
 
-    insert_defaults.t -o= <out_file> -i <file> [options] 
+    insert_defaults.t -i <file> -o= <out_file> [options]
 
 \=head1 REQUIRED ARGUMENTS
 
