@@ -7,16 +7,25 @@ BEGIN {
     *CORE::GLOBAL::exit = sub { die $stderr };
 }
 
+
 sub got_arg {
     my ($key, $val) = @_;
     is $ARGV{$key}, $val, "Got expected value for $key";
 }
+
 
 sub got_no_arg {
     my ($key) = @_;
     my $res = exists $ARGV{$key} ? 1 : 0;
     is $res, 0, "Got expected absence of $key";
 }
+
+
+sub lucky {
+    my ($num) = @_;
+    return $num == 7;
+}
+
 
 # Parse argument specs
 use Getopt::Euclid qw(:defer);
@@ -29,34 +38,36 @@ $H       = 2;
 $W       = -10;
 $TIMEOUT = 7;
 
-# Validate first set of args (exclusive params)
+
+# Validate first set of args (exclusive params):
+#   <l> excludes <h> and <w>
 @argv = (
     '-i', $INFILE,
     "-out=$OUTFILE",
-    '-lgth', $LEN,
-    'size', "${H}x${W}",
-    '-v',
+    '-lgth', $LEN,       # <len>
+    'size', "${H}x${W}", # <h> and <w>
     '--timeout', $TIMEOUT,
+    '-v',
     7,
 );
-
 if (eval { Getopt::Euclid->process_args(\@argv); 1 }) {
     ok 0 => 'Unexpectedly succeeded';
 } else {
     like $@, qr/excludes/ => 'Failed as expected';
 }
 
-# Validate second set of args (other exclusive params)
+
+# Validate second set of args (other exclusive params):
+#   <space> excludes <step>
 @argv = (
     '-i', $INFILE,
     "-out=$OUTFILE",
     '-lgth', $LEN,
-    '-v',
     '--timeout', $TIMEOUT,
-    '--with', 's p a c e s',
-    7,
+    '-v',
+    '--with', 's p a c e s', # <space>
+    7,                       # <step>
 );
-
 if (eval { Getopt::Euclid->process_args(\@argv); 1 }) {
     ok 0 => 'Unexpectedly succeeded';
 } else {
@@ -65,40 +76,44 @@ if (eval { Getopt::Euclid->process_args(\@argv); 1 }) {
 
 
 # Validate third set of args (exclusive default values)
+#   <h> and <w> (not specified, have defaults) excluded by <l> (not specified,
+#   has default) -> <l>'s default prevails
+#   <color> (not specified, has default) excluded by <other> (not specified, has
+#   no default) -> <color>'s default prevails
 @argv = (
     '-i', $INFILE,
     "-out=$OUTFILE",
-    '-v',
     '--timeout', $TIMEOUT,
+    '-v',
     7,
 );
 Getopt::Euclid->process_args(\@argv);
-
 got_arg '-length' => 24;
 got_no_arg 'size';
+got_arg '--color' => 'red';
+got_no_arg '--other';
+got_arg '<step>' => 7;
+got_no_arg '-w';
+
 
 # Validate fourth set of args (more exclusive default values)
+#   <step> (specified, has default) excluded by <space> (not specified, has default)
+#   <h> and <w> (specified, have defaults) excluded by <l> (not specified, has default)
 @argv = (
     '-i', $INFILE,
     '-out=$OUTFILE',
     'size', "${H}x${W}",
-    '-v',
     '--timeout', $TIMEOUT,
+    '-v',
     7,
 );
 Getopt::Euclid->process_args(\@argv);
-
-is $ARGV{size}{h}, $H           => 'Got expected value for size <h>';
-is $ARGV{size}{w}, $W           => 'Got expected value for size <w>';
-got_no_arg '-size';
-
-
-
-sub lucky {
-    my ($num) = @_;
-    return $num == 7;
-}
-
+got_arg '--color' => 'red';
+got_no_arg '--other';
+is_deeply $ARGV{size}, { h => $H, w => $W }  => 'Got expected value for size';
+got_no_arg '-l';
+got_arg '<step>' => 7;
+got_no_arg '-w';
 
 
 __END__
@@ -183,6 +198,20 @@ Test something spaced
 =for Euclid:
     space.excludes: step
     space.default:  's p a c e'
+
+=item --color <color>
+
+Pick a color
+
+=for Euclid:
+    color.default: 'red'
+
+=item --other <other>
+
+Override color (no default).
+
+=for Euclid:
+    other.excludes: color
 
 =item <step>
 

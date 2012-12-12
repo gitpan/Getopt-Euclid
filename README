@@ -2,7 +2,7 @@ NAME
     Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 VERSION
-    This document describes Getopt::Euclid version 0.3.8
+    This document describes Getopt::Euclid version 0.3.9
 
 SYNOPSIS
         use Getopt::Euclid;

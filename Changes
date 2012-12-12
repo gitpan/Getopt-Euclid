@@ -1,5 +1,9 @@
 Revision history for Getopt-Euclid
 
+0.3.9
+  - Fixed issues in mutually exclusive arguments that have default values (RT
+    bug #81630 again)
+
 0.3.8
   - Messages respect order of user options (fixes RT bug #81630)
   - Show --man and --usage in help message

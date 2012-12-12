@@ -77,4 +77,3 @@ t/types.t
 t/types_regex.t
 t/types_vars.t
 t/vars_export.t
-TODO

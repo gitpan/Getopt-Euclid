@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; our $VERSION = version->declare('0.3.8');
+use version; our $VERSION = version->declare('0.3.9');
 
 use warnings;
 use strict;
@@ -510,7 +510,7 @@ sub _process_prog_pod {
 sub _process_euclid_specs {
     my (@args) = @_;
     my %var_list;
-    my %excluded_by;
+    my %excluded_by_def;
 
   ARG:
     for my $arg ( @args ) {
@@ -611,11 +611,17 @@ sub _process_euclid_specs {
                         _fail( "Invalid .excludes value for variable <$var>: ".
                             "<$excl_var> cannot exclude itself." );
                     }
-                    $excluded_by{$excl_var} = $var;
                 }
             }
             else {
                 _fail("Unknown specification: $spec");
+            }
+        }
+        # Record variables excluded by another that has a default
+        while (my ($var_name, $var_data) = each %{$arg->{var}}) {
+            for my $excl_var (@{$arg->{var}{$var_name}{excludes}}) {
+                $excluded_by_def{$excl_var}{default}{$var_name}     = 1 if $arg->{has_default};
+                $excluded_by_def{$excl_var}{opt_default}{$var_name} = 1 if $arg->{has_opt_default};
             }
         }
         if ( $info =~ m{\G \s* ([^\s\0\1] [^\n]*) }gcxms ) {
@@ -633,10 +639,15 @@ sub _process_euclid_specs {
                         "<$excl_var> does not exist\n" );
                 }
             }
-            # Fill in placeholders that are excluded by others
-            if ( exists $excluded_by{$var} ) {
-              my $mut_var = $excluded_by{$var};
-              push @{$var_specs->{excluded_by}}, $mut_var;
+            # Remove default for placeholders excluded by others that have a default
+            for my $type ( 'default', 'opt_default' ) {
+                if ( (exists $arg->{var}->{$var}->{$type}) && (exists $excluded_by_def{$var}{$type}) ) {
+                    delete $arg->{var}->{$var}->{$type};
+                    $arg->{"has_$type"}--;
+                    if ($arg->{"has_$type"} == 0) {
+                        delete $arg->{"has_$type"};
+                    }
+                }
             }
         }
     }
@@ -813,7 +824,6 @@ sub _rectify_all_args {
 sub _verify_args {
     my ($arg_specs_ref) = @_;
     # Check exclusive variables, variable constraints and fill in defaults...
-
     # Handle mutually exclusive arguments
     my %seen_vars; 
     while ( my ($arg_name, $arg_elems) = each %ARGV ) {
@@ -823,6 +833,7 @@ sub _verify_args {
             }
         }
     }
+
     while ( my ($arg_name, $arg) = each %{$arg_specs_ref} ) {
         while ( my ($var_name, $var) = each %{$arg->{var}} ) {
             # Enforce placeholders that cannot be specified with others
@@ -842,26 +853,8 @@ sub _verify_args {
                     _bad_arglist($msg);                
                 }
             }
-            # Default values do not apply to arguments excluded by others
-            for my $excl_var ( @{$var->{excluded_by}}, @{$var->{excludes}} ) {
-                if (exists $seen_vars{$excl_var}) {
-                    delete $arg_specs_ref->{$arg_name}{var}{$var_name}{default};
-                    $arg_specs_ref->{$arg_name}{has_default}--;
-                    delete $arg_specs_ref->{$arg_name}{var}{$var_name}{opt_default};
-                    $arg_specs_ref->{$arg_name}{has_opt_default}--;
-                   
-                    if ($arg_specs_ref->{$arg_name}{has_default} == 0) {
-                        delete $arg_specs_ref->{$arg_name}{has_default};
-                    }
-                    if ($arg_specs_ref->{$arg_name}{has_opt_default} == 0) {
-                        delete $arg_specs_ref->{$arg_name}{has_opt_default};
-                    }
-                }
-            }
-
         }
     }
-    undef %seen_vars;
 
     # Enforce constraints and fill in defaults...
   ARG:
@@ -944,10 +937,16 @@ sub _verify_args {
                 # Assign defaults (if necessary)...
                 my $arg_vars = $arg_specs->{var}->{$var};
                 next ARG
-                  if !exists $arg_vars->{default};
+                  if !exists $arg_vars->{default}; # no default specified
 
-                $ARGV{$arg_name}[0]{$var} =
-                  $arg_vars->{default};
+                # Omit default if it conflicts with a specified parameter
+                for my $excl_var ( @{$arg_specs->{var}->{$var}->{excludes}} ) {
+                    if (exists $seen_vars{$excl_var}) {
+                        next ARG;
+                    }
+                }
+
+                $ARGV{$arg_name}[0]{$var} = $arg_vars->{default};
             }
         }
     }
@@ -1264,7 +1263,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.3.8
+This document describes Getopt::Euclid version 0.3.9
 
 =head1 SYNOPSIS
 
