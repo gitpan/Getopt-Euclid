@@ -69,10 +69,13 @@ t/quoted_args.t
 t/quoted_args_2.t
 t/repeatable.t
 t/repeated.t
+t/repeated_2.t
 t/simple.t
 t/simple_alternate.t
 t/simple_shuffle.t
 t/std_arguments.t
+t/substr.t
+t/substr_2.t
 t/types.t
 t/types_regex.t
 t/types_vars.t

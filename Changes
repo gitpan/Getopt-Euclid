@@ -1,5 +1,10 @@
 Revision history for Getopt-Euclid
 
+0.4.0
+  - Fixed issue with option values that are substrings of others (bug #76728, 
+    reported by Igor Kleshchevich, patch by James F Hester)
+  - Update of META.yml (bug #83221)
+
 0.3.9
   - Fixed issues in mutually exclusive arguments that have default values (RT
     bug #81630 again)

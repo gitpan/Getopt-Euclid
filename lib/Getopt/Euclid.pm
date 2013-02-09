@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; our $VERSION = version->declare('0.3.9');
+use version; our $VERSION = version->declare('0.4.0');
 
 use warnings;
 use strict;
@@ -973,7 +973,8 @@ sub _convert_to_regex {
     my ($args_ref) = @_;
 
     # Regexp to capture the start of a new argument
-    my $no_esc_ws = '(?!\0|\1)'; # no escaped whitespaces
+    my $no_esc_ws = '(?!\0)'; # no escaped whitespaces
+
     my @arg_variants;
     while ( my ($arg_name, $arg_specs) = each %{$args_ref} ) {
         push @arg_variants, @{$arg_specs->{variants}};
@@ -1263,7 +1264,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.3.9
+This document describes Getopt::Euclid version 0.4.0
 
 =head1 SYNOPSIS
 
