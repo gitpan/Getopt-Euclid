@@ -57,6 +57,7 @@ t/insert_defaults.t
 t/lib/HierDemo.pm
 t/lib/HierDemo.pod
 t/lib/HierDemo2.pm
+t/lib/HierDemo2.pod
 t/minimal.t
 t/minimal_2.t
 t/opt_default.t
