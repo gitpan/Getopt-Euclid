@@ -2,7 +2,7 @@ NAME
     Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 VERSION
-    This document describes Getopt::Euclid version 0.4.0
+    This document describes Getopt::Euclid version 0.4.1
 
 SYNOPSIS
         use Getopt::Euclid;
@@ -797,6 +797,29 @@ INTERFACE
 
         =for Euclid:
             level.opt_default: 3
+
+    Just like for "Placeholder constraints", you can also use variables to
+    define default values. You must use the :defer mode and the variables
+    must be globally accessible:
+
+        use Getopt::Euclid qw(:defer);
+        Getopt::Euclid->process_args(\@ARGV);
+
+        __END__
+
+        =head1 OPTIONS
+
+        =over
+
+        =item --home <home>
+
+        Your project home. When omitted, this defaults to the location stored in
+        the HOME environment variable.
+
+        =for Euclid
+           home.default: $ENV{'HOME'}
+
+        =back
 
   Exclusive placeholders
     Some arguments can be mutually exclusive. In this case, it is possible

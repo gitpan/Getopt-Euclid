@@ -15,6 +15,7 @@ use Getopt::Euclid qw(:defer);
 
 use Test::More 'no_plan';
 
+no warnings('once');
 
 our $TEST = 'aaa';
 

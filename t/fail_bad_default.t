@@ -27,12 +27,11 @@ BEGIN {
 
 if (eval { require Getopt::Euclid and Getopt::Euclid->import(); 1 }) {
     ok 0 => 'Unexpectedly succeeded';
-}
-else {
+} else {
     like $@, qr/Getopt::Euclid: Invalid .default value: file.default: '-/
-         => 'Failed as expected'; 
+         => 'Failed as expected';
     like $@, qr/Can't find string terminator "'"/
-         => 'With expected message'; 
+         => 'With expected message';
 }
 
 __END__

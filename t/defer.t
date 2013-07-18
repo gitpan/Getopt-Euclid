@@ -15,7 +15,6 @@ BEGIN {
         '-v',
         '--timeout', $TIMEOUT,
         '-w', 's p a c e s',
-        7,
     );
 
     chmod 0644, $0;
@@ -24,13 +23,58 @@ BEGIN {
 use Getopt::Euclid qw( :defer );
 use Test::More 'no_plan';
 
-is scalar @ARGV, 14 => '@ARGV processing was defered';
+
+our $STEP1 = 4;
+our $STEP2 = 3;
+
+
+sub got_arg {
+    my ($key, $val) = @_;
+    is $ARGV{$key}, $val, "Got expected value for $key";
+}
+
+
+is scalar @ARGV, 13 => '@ARGV processing was defered';
 is keys %ARGV, 0 => '%ARGV processing was defered';
 
 Getopt::Euclid->process_args(\@ARGV);
 
 is scalar @ARGV, 0 => '@ARGV was processed';
 is keys %ARGV, 19 => '%ARGV was processed';
+
+got_arg -i       => $INFILE;
+got_arg -infile  => $INFILE;
+
+got_arg -l       => $LEN;
+got_arg -len     => $LEN;
+got_arg -length  => $LEN;
+got_arg -lgth    => $LEN;
+
+got_arg -girth   => 42;
+
+got_arg -o       => $OUTFILE;
+got_arg -ofile   => $OUTFILE;
+got_arg -out     => $OUTFILE;
+got_arg -outfile => $OUTFILE;
+
+got_arg '--no-fudge' => 1;
+
+got_arg -v       => 1,
+got_arg -verbose => 1,
+
+is ref $ARGV{'--timeout'}, 'HASH'     => 'Hash reference returned for timeout';
+is $ARGV{'--timeout'}{min}, $TIMEOUT  => 'Got expected value for timeout <min>';
+is $ARGV{'--timeout'}{max}, -1        => 'Got default value for timeout <max>';
+
+is ref $ARGV{size}, 'HASH'      => 'Hash reference returned for size';
+is $ARGV{size}{h}, $H           => 'Got expected value for size <h>';
+is $ARGV{size}{w}, $W           => 'Got expected value for size <w>';
+
+is $ARGV{-w},       's p a c e s'      => 'Handled alternation correctly';
+
+is $ARGV{'<step>'}, 7      => 'Handled step size correctly';
+
+
 
 __END__
 
@@ -115,7 +159,10 @@ Automaticaly fudge the factors.
 
 =item <step>
 
-Step size
+Step size.
+
+=for Euclid:
+   step.default: $STEP1 + $STEP2
 
 =item --version
 

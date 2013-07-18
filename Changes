@@ -1,5 +1,8 @@
 Revision history for Getopt-Euclid
 
+0.4.1
+  - Support for default values defined based on variables
+
 0.4.0
   - Fixed issue with option values that are substrings of others (bug #76728, 
     reported by Igor Kleshchevich, patch by James F Hester)
