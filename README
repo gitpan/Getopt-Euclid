@@ -2,7 +2,7 @@ NAME
     Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 VERSION
-    This document describes Getopt::Euclid version 0.4.2
+    This document describes Getopt::Euclid version 0.4.3
 
 SYNOPSIS
         use Getopt::Euclid;
@@ -1116,6 +1116,31 @@ DIAGNOSTICS
                 curse.default: '*$@!&'
 
     Invalid .opt_default value: %s
+        Same as previous diagnostic, but for optional defaults.
+
+    Invalid reference to field (%s.default) in argument description: %s
+        You referred to a default value in the description of an argument,
+        but there is no such default. It may be a typo, or you may be
+        referring to the default value for a different argument, e.g.:
+
+            =item -a <age>
+
+            An optional age. Default: years.default
+
+            =for Euclid
+                age.default: 21
+
+        instead of:
+
+            =item -a <age>
+
+            An optional age. Default: age.default
+
+            =for Euclid
+                age.default: 21
+
+    Invalid reference to field %s.opt_defaul) in this argument description:
+    %s
         Same as previous diagnostic, but for optional defaults.
 
     Invalid .opt_default constraint

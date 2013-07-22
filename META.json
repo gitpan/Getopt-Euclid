@@ -1,0 +1,56 @@
+{
+   "abstract" : "Executable Uniform Command-Line Interface Descriptions",
+   "author" : [
+      "Damian Conway <DCONWAY@cpan.org>"
+   ],
+   "dynamic_config" : 1,
+   "generated_by" : "Module::Build version 0.4003, CPAN::Meta::Converter version 2.120921",
+   "license" : [
+      "perl_5"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : "2"
+   },
+   "name" : "Getopt-Euclid",
+   "prereqs" : {
+      "build" : {
+         "requires" : {
+            "Pod::Checker" : "0",
+            "Test::More" : "0"
+         }
+      },
+      "configure" : {
+         "requires" : {
+            "Module::Build" : "0.40"
+         }
+      },
+      "runtime" : {
+         "recommends" : {
+            "IO::Pager::Page" : "0"
+         },
+         "requires" : {
+            "File::Basename" : "0",
+            "File::Spec::Functions" : "0",
+            "List::Util" : "0",
+            "Pod::PlainText" : "0",
+            "Pod::Select" : "0",
+            "Text::Balanced" : "0",
+            "version" : "0"
+         }
+      }
+   },
+   "provides" : {
+      "Getopt::Euclid" : {
+         "file" : "lib/Getopt/Euclid.pm",
+         "version" : "v0.4.3"
+      }
+   },
+   "release_status" : "stable",
+   "resources" : {
+      "license" : [
+         "http://dev.perl.org/licenses/"
+      ]
+   },
+   "version" : "v0.4.3"
+}

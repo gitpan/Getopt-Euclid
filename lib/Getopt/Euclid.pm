@@ -1,11 +1,12 @@
 package Getopt::Euclid;
 
-use version; our $VERSION = version->declare('0.4.2');
+use version; our $VERSION = version->declare('0.4.3');
 
 use warnings;
 use strict;
 use 5.005000; # perl 5.5.0
 use Carp;
+use Symbol ();
 use re 'eval'; # for matcher regex
 use Pod::Select;
 use Pod::PlainText;
@@ -439,7 +440,12 @@ sub _process_pod {
     _minimize_entries_of( \%longnames );
 
     # Extract Euclid information...
-    _process_euclid_specs( values(%requireds), values(%options) );
+    my $all_specs = {%requireds, %options};
+    _process_euclid_specs( $all_specs );
+
+    # Insert default values (if any) in the program's documentation
+    $required = _insert_default_values(\%requireds);
+    $options  = _insert_default_values(\%options  );
 
     # One-line representation of interface...
     my $arg_summary = join ' ', (sort
@@ -453,10 +459,6 @@ sub _process_pod {
       $arg_summary .= lc "[$opt_name]";
     }
     $arg_summary =~ s/\s+/ /gxms;
-
-    # Insert default values (if any) in the program's documentation
-    $required = _insert_default_values(\%requireds);
-    $options  = _insert_default_values(\%options  );
 
     # Manual message
     $man =~ s{ ($HEAD_START $USAGE    \s*) .*? (\s*) $HEAD_END } {$1$SCRIPT_NAME $arg_summary$2}xms;
@@ -484,7 +486,7 @@ sub _process_pod {
     $version .= "\n$licence\n" if $licence;
 
     # Convert arg specifications to regexes...
-    _convert_to_regex( {%requireds, %options} );
+    _convert_to_regex( $all_specs );
 
     # Build matcher...
     my @arg_list = ( values(%requireds), values(%options) );
@@ -522,16 +524,15 @@ sub _register_specs {
 
 
 sub _process_euclid_specs {
-    my (@args) = @_;
+    my ($args) = @_;
     my %var_list;
     my %excluded_by_def;
 
   ARG:
-    for my $arg ( @args ) {
+    while ( (undef, my $arg) = each %$args ) {
 
-        # Record variables seen here...
-        my $var_names = _check_name( $arg->{name} );
-        for my $var_name (@$var_names) {
+        # Validate and record variables seen here...
+        for my $var_name (@{_validate_name( $arg->{name} )}) {
             $var_list{$var_name} = undef;
         }
 
@@ -643,7 +644,8 @@ sub _process_euclid_specs {
     }
 
     # Validate and complete .excludes specs
-    for my $arg ( @args ) {
+
+    while ( (undef, my $arg) = each %$args ) {
         while ( my ($var, $var_specs) = each %{$arg->{var}} ) {
             # Check for invalid placeholder name in .excludes specifications
             for my $excl_var (@{$var_specs->{excludes}}) {
@@ -675,43 +677,52 @@ sub _qualify_variables_fully {
     #    $Package::x stays as $Package::x
     #    /^asdf$/    stays as /^asdf$/
     #    '$10'       stays as '$10'
+    # Note: perlvar indicates that ' can also be used instead of ::
     my ($val) = @_;
-    my $new_val;
-    for my $section (extract_multiple($val,[{Quoted=>sub{extract_delimited($_[0])}}],undef,0)) {
-        if (not ref $section) {
-            # A non-quoted section... may contain variables to fix
-            for my $var_name ( @{_get_variable_names($section)} ) {
-                my $sigil = substr $var_name, 0, 1, '';
-                my @fields = split '::', $var_name;
-                shift @fields if $fields[0] eq '';
-                # Skip fully qualified names, such as '$Package::x'
-                next if scalar @fields > 1;
-                # Substitute non-fully qualified variable name, such as '$x' or '$::x'
-                my $new_name = $sigil.'main::'.$fields[0];
-                $var_name = quotemeta( $sigil.$var_name );
-                $section =~ s/$var_name/$new_name/g;
+    if ($val =~ m/[\$\@\%]/) { # Avoid expensive Text::Balanced operations when there are no variables
+        my $new_val;
+        for my $s (extract_multiple($val,[{Quoted=>sub{extract_delimited($_[0])}}],undef,0)) {
+            if (not ref $s) {
+                # A non-quoted section... may contain variables to fix
+                for my $var_name ( @{_get_variable_names($s)} ) {
+                    # Skip fully qualified names, such as '$Package::x'
+                    next if $var_name =~ m/main(?:'|::)/;
+                    # Remove sigils from beginning of variable name: $ @ % {
+                    $var_name =~ s/^[\$\@\%\{]+//;
+                    # Substitute non-fully qualified vars, e.g. '$x' or '$::x', by '$main::x'
+                    my $new_name = Symbol::qualify($var_name, 'main');
+                    next if $new_name eq $var_name;
+                    $var_name = quotemeta( $var_name );
+                    $s =~ s/$var_name/$new_name/;
+                }
+                $new_val .= $s;
+            } else {
+                # A quoted section, to keep as-is
+                $new_val .= $$s;
             }
-            $new_val .= $section;
-        } else {
-            # A quoted section, to keep as-is
-            $new_val .= $$section;
         }
+        return $new_val;
+    } else {
+        return $val;
     }
-    return $new_val;
 }
 
 
 sub _get_variable_names {
-    # Get the variables names (as an arrayref) found in a string.
-    my ($string) = @_;
-    my $var_names = [];
-    for my $var_name (extract_multiple($string,[sub{extract_variable($_[0],'')}],undef,1)) {
-        # Skip special or invalid names.
-        # Name must start with underscore or a letter, e.g. '$t' or '@_'
-        next if not $var_name =~ m/^.[_a-z]/i; 
-        push @$var_names, $var_name;
+    # Get an arrayref of the variables names found in the provided string.
+    # This function is a hack, needed only because of Text::Balanced ticket #78855:
+    #    https://rt.cpan.org/Public/Bug/Display.html?id=78855
+    my ($str) = @_;
+    my $vars = [];
+    for my $var (extract_multiple($str,[sub{extract_variable($_[0],'')}],undef,1)) {
+        # Name must start with underscore or a letter, e.g. $t $$h{a} ${$h}{a} $h->{a} @_
+        # Skip special or invalid names, e.g. $/ $1
+        my $tmp = $var;
+        $tmp =~ s/(?:{|})//g;
+        next if not $tmp =~ m/^[\$\@\%]+[_a-z]/i;
+        push @$vars, $var;
     }
-    return $var_names;
+    return $vars;
 }
 
 
@@ -1044,7 +1055,7 @@ sub _convert_to_regex {
 sub _escape_specials {
     # Escape quotemeta special characters
     my $arg = shift;
-    $arg =~ s{([@#$^*()+{}?])}{\\$1}gxms;
+    $arg =~ s{([@#$^*()+{}?])}{\\$1}gxms; #?
     return $arg;
 }
 
@@ -1066,20 +1077,23 @@ sub _print_pod {
 }
 
 
-sub _check_name {
+sub _validate_name {
     # Check that the argument name only has pairs of < > brackets (ticket 34199)
     # Return the name of the variables that this argument specifies
     my ($name) = @_;
-    my %var_names;
-    for my $s (extract_multiple($name,[sub{extract_bracketed($_[0],'<>')}],undef,0)) {
-        if ($s =~ s/^<(.*)>$/$1/) {
-            $var_names{$1} = undef;
+    if ($name =~ m/[<>]/) { # skip expensive Text::Balance functions if possible
+        my %var_names;
+        for my $s (extract_multiple($name,[sub{extract_bracketed($_[0],'<>')}],undef,0)) {
+            $s =~ s/^<(.*)>$/$1/;
+            if ( $s =~ m/[<>]/ ) {
+                _fail( 'Invalid argument specification: '.$name );
+            }
+            $var_names{$s} = undef;
         }
-        if ( $s =~ m/[<>]/ ) {
-            _fail( 'Invalid argument specification: ' . $name );
-        }
+        return [keys %var_names];
+    } else {    
+        return [];
     }
-    return [keys %var_names];
 }
 
 
@@ -1248,6 +1262,11 @@ sub _insert_default_values {
                 $item_spec =~ s/$var_name\.$default_type/$var_default/g;
             }
         }
+        if ($item_spec =~ m/(\S+(\.(?:opt_)?default))/) {
+            my ($reference, $default_type) = ($1, $2);
+            _fail( "Invalid reference to field $reference in this argument ".
+                   "description:\n$item_spec" );
+        }
         $pod_string .= $item_spec;
     }
     $pod_string = "=over\n\n".$pod_string."=back\n\n";
@@ -1263,7 +1282,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.4.2
+This document describes Getopt::Euclid version 0.4.3
 
 =head1 SYNOPSIS
 
@@ -2443,6 +2462,32 @@ instead of:
         curse.default: '*$@!&'
 
 =item Invalid .opt_default value: %s
+
+Same as previous diagnostic, but for optional defaults.
+
+=item Invalid reference to field (%s.default) in argument description: %s
+
+You referred to a default value in the description of an argument, but there
+is no such default. It may be a typo, or you may be referring to the default
+value for a different argument, e.g.:
+
+    =item -a <age>
+
+    An optional age. Default: years.default
+
+    =for Euclid
+        age.default: 21
+
+instead of:
+
+    =item -a <age>
+
+    An optional age. Default: age.default
+
+    =for Euclid
+        age.default: 21
+
+=item Invalid reference to field %s.opt_defaul) in this argument description: %s
 
 Same as previous diagnostic, but for optional defaults.
 

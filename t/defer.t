@@ -26,6 +26,7 @@ use Test::More 'no_plan';
 
 our $STEP1 = 4;
 our $STEP2 = 3;
+our $STEPS = { 'extra' => 0.1 };
 
 
 sub got_arg {
@@ -72,7 +73,7 @@ is $ARGV{size}{w}, $W           => 'Got expected value for size <w>';
 
 is $ARGV{-w},       's p a c e s'      => 'Handled alternation correctly';
 
-is $ARGV{'<step>'}, 7      => 'Handled step size correctly';
+is $ARGV{'<step>'}, 7.3      => 'Handled step size correctly';
 
 
 
@@ -162,7 +163,7 @@ Automaticaly fudge the factors.
 Step size.
 
 =for Euclid:
-   step.default: $STEP1 + $STEP2
+   step.default: $STEP1 + $STEPS->{extra} + $$STEPS{extra} + ${$STEPS}{extra} + $main'STEP2
 
 =item --version
 

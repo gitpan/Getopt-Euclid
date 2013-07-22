@@ -24,6 +24,7 @@ t/eval.t
 t/excludes.t
 t/fail_bad_constraint.t
 t/fail_bad_default.t
+t/fail_bad_default_ref.t
 t/fail_bad_excludes.t
 t/fail_bad_excludes_2.t
 t/fail_bad_name.t
@@ -81,3 +82,4 @@ t/types.t
 t/types_regex.t
 t/types_vars.t
 t/vars_export.t
+META.json

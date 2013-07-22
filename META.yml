@@ -1,25 +1,23 @@
 ---
 abstract: 'Executable Uniform Command-Line Interface Descriptions'
 author:
-  - 'Damian Conway (DCONWAY@CPAN.org)'
+  - 'Damian Conway <DCONWAY@cpan.org>'
 build_requires:
-  ExtUtils::MakeMaker: 6.36
   Pod::Checker: 0
   Test::More: 0
 configure_requires:
-  ExtUtils::MakeMaker: 6.36
-distribution_type: module
+  Module::Build: 0.40
 dynamic_config: 1
-generated_by: 'Module::Install version 1.06'
+generated_by: 'Module::Build version 0.4003, CPAN::Meta::Converter version 2.120921'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
 name: Getopt-Euclid
-no_index:
-  directory:
-    - inc
-    - t
+provides:
+  Getopt::Euclid:
+    file: lib/Getopt/Euclid.pm
+    version: v0.4.3
 recommends:
   IO::Pager::Page: 0
 requires:
@@ -29,11 +27,7 @@ requires:
   Pod::PlainText: 0
   Pod::Select: 0
   Text::Balanced: 0
-  perl: 5.005
   version: 0
 resources:
-  bugtracker: https://rt.cpan.org/Public/Dist/Display.html?Name=Getopt-Euclid
-  homepage: http://search.cpan.org/search?query=Getopt%3A%3AEuclid&mode=dist
   license: http://dev.perl.org/licenses/
-  repository: git://getopt-euclid.git.sourceforge.net/gitroot/getopt-euclid/getopt-euclid
-version: 0.004002
+version: v0.4.3
