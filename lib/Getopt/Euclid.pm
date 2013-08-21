@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; our $VERSION = version->declare('0.4.3');
+use version; our $VERSION = version->declare('0.4.4');
 
 use warnings;
 use strict;
@@ -17,8 +17,12 @@ use Text::Balanced qw(extract_multiple extract_bracketed extract_variable extrac
 
 
 # Set some module variables
+my $skip_keyword = 'Getopt::Euclid'; # Ignore files with a first line containing this keyword.
+my $pod_file_msg = "# This file was generated dynamically by $skip_keyword. Do not edit it.";
+
 my $has_run = 0;
 my $has_processed_pod = 0;
+my $export_lvl = 1;
 my @pod_names;
 my $minimal_keys;
 my $vars_prefix;
@@ -27,24 +31,23 @@ my $matcher;
 my %requireds;
 my %options;
 my %longnames;
-my $man;     # --man     message
+our $man;    # --man     message
 my $help;    # --help    message
 my $usage;   # --usage   message
 my $version; # --version message
 
-my $skip_keyword = 'Getopt::Euclid'; # Ignore files with a first line containing this keyword.
-my $pod_file_msg = "# This file was generated dynamically by $skip_keyword. Do not edit it.";
+my $optional_re;
+$optional_re = qr{ \[ [^[]* (?: (??{$optional_re}) [^[]* )* \] }xms;
+
 
 # Global variables
 our $SCRIPT_NAME;
 our $SCRIPT_VERSION; # for ticket # 55259
 
-my $OPTIONAL;
-$OPTIONAL = qr{ \[ [^[]* (?: (??{$OPTIONAL}) [^[]* )* \] }xms;
 
 # Convert arg specification syntax to Perl regex syntax
 
-my %STD_MATCHER_FOR = (
+my %std_matcher_for = (
     integer => '[+-]?\\d+(?:[eE][+]?\d+)?',
     number  => '[+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\d+)?',
     input   => '\S+',
@@ -54,7 +57,7 @@ my %STD_MATCHER_FOR = (
 );
 
 _make_equivalent(
-    \%STD_MATCHER_FOR,
+    \%std_matcher_for,
     integer => [qw( int i +int +i 0+int 0+i +integer 0+integer )],
     number  => [qw( num n +num +n 0+num 0+n +number 0+number   )],
     input   => [qw( readable in )],
@@ -62,7 +65,7 @@ _make_equivalent(
     string  => [qw( str s )],
 );
 
-my %STD_CONSTRAINT_FOR = (
+my %std_constraint_for = (
     'string'    => sub { 1 },            # Always okay (matcher ensures this)
     'integer'   => sub { 1 },            # Always okay (matcher ensures this)
     '+integer'  => sub { $_[0] > 0 },
@@ -79,7 +82,7 @@ my %STD_CONSTRAINT_FOR = (
 );
 
 _make_equivalent(
-    \%STD_CONSTRAINT_FOR,
+    \%std_constraint_for,
     'integer'   => [qw(   int   i )],
     '+integer'  => [qw(  +int  +i )],
     '0+integer' => [qw( 0+int 0+i )],
@@ -101,54 +104,75 @@ sub Getopt::Euclid::Importer::DESTROY {
 sub import {
     shift @_;
     @_ = grep { !( /:minimal_keys/     and $minimal_keys = 1             ) } @_;
-    @_ = grep { !( /:vars(?:<(\w+)>)?/ and $vars_prefix  = $1 || "ARGV_" ) } @_;
+    @_ = grep { !( /:vars(?:<(\w+)>)?/ and $vars_prefix  = $1 || 'ARGV_' ) } @_;
     @_ = grep { !( /:defer/            and $defer        = 1             ) } @_;
     croak "Unknown mode ('$_')" for @_;
+    $export_lvl++ if not $defer;
 
     # No POD parsing and argument processing in Perl compile mode (ticket 34195)
     return if $^C;
 
-    # Get POD of caller program and its modules
-    return unless _get_pod();
+    # Get name of caller program and its modules in @pod_names
+    return unless _get_pod_names();
+
+    # Extract POD of given files
+    __PACKAGE__->process_pods( [reverse @pod_names] );
+    undef @pod_names;
+    $has_run = 1;
 
     # Parse POD + parse and export arguments
-    Getopt::Euclid->process_args( \@ARGV ) unless $defer;
+    __PACKAGE__->process_args( \@ARGV ) unless $defer;
+
+    return 1;
 }
 
 
-sub man {
-    shift @_;
-    return $man;
-}
+sub process_pods {
+    # Extract POD content from list of Perl scripts (.pl) and modules (.pm) and
+    # their corresponding .pod file if available. When given the argument
+    # {-strict => 1}, do not look for .pod files.
+    my ($self, $perl_files, $args) = @_;
 
+    my $pod_string = '';
+    open my $pod_fh, '>', \$pod_string
+      or croak "Could not open filehandle to variable because $!";
+    for my $perl_file (@$perl_files) {
 
-sub podfile {
-    # Write the given POD doc into a .pod file, overwriting any existing .pod file
-    return if not -e $0;
-    my ($name, $path, $suffix) = fileparse($0, qr/\.[^.]*/);
-    my $pod_file = catfile( $path, $name.'.pod' );
-    open my $out_fh, '>', $pod_file or croak "Could not write file $pod_file because $!";
-    print $out_fh $pod_file_msg."\n\n".Getopt::Euclid->man();
-    close $out_fh;
-    return $pod_file;
-}
+        my $got_pod_file = 0;
 
+        if ( not $args->{-strict} ) {
 
-sub usage {
-    shift @_;
-    return $usage;
-}
+            # Find corresponding .pod file
+            my ($name_re, $path, $suffix) = fileparse($perl_file, qr/\.[^.]*/);
+            my $pod_file = catfile( $path, $name_re.'.pod' );
 
+            # Get POD either from .pod file (preferably) or from Perl file
+            if ( -e $pod_file ) {
+                # Get .pod file content
+                open my $in, '<', $pod_file
+                  or croak "Could not open file $pod_file because $!";
+                my $first_line = <$in>;
+                chomp $first_line;
+                if ( not ($first_line =~ m/$skip_keyword/) ) {
+                    # Skip G::E auto-generated files since they lack important data
+                    print $pod_fh "$first_line\n";
+                    print $pod_fh $_ while <$in>;
+                    $got_pod_file = 1;
+                }
+                close $in;
+            }
+        }
 
-sub help {
-    shift @_;
-    return $help;
-}
+        if (not $got_pod_file) {
+            # Parse POD content of Perl file
+            podselect( {-output => $pod_fh}, $perl_file );
+        }
+        print $pod_fh "\n" if $pod_string;
 
-
-sub version {
-    shift @_;
-    return $version;
+    }
+    close $pod_fh;
+    $man = $pod_string;
+    return 1;
 }
 
 
@@ -156,30 +180,41 @@ sub process_args {
     # First, parse the POD specifications. Then, parse the given array of
     # arguments (\@ARGV or other) and populate %ARGV (or export specific
     # variable names).
-    my ($self, $args) = @_;
+    my ($self, $args, $options) = @_;
 
+    # Parse POD
     if (not $has_processed_pod) {
-        _process_pod();
+        _parse_pod();
         $has_processed_pod = 1;
+    }
+
+    # Set options for argument parsing
+    if (defined $options) {
+       if (exists $options->{-minimal_keys}) {
+          $minimal_keys = 1;
+       }
+       if (exists $options->{-vars}) {
+          $vars_prefix = $options->{-vars};
+       }
     }
 
     %ARGV = ();
 
     # Handle standard args...
     if ( first { $_ eq '--man' } @$args ) {
-        _print_pod( Getopt::Euclid->man(), 'paged' );
+        _print_pod( __PACKAGE__->man(), 'paged' );
         exit;
     }
     elsif ( first { $_ eq '--usage' } @$args ) {
-        print Getopt::Euclid->usage();
+        print __PACKAGE__->usage();
         exit;
     }
     elsif ( first { $_ eq '--help' } @$args ) {
-        _print_pod( Getopt::Euclid->help(), 'paged' );
+        _print_pod( __PACKAGE__->help(), 'paged' );
         exit;
     }
     elsif ( first { $_ eq '--version' } @$args ) {
-        print Getopt::Euclid->version();
+        print __PACKAGE__->version();
         exit;
     }
     elsif ( first { $_ eq '--podfile' } @$args ) {
@@ -299,6 +334,39 @@ sub process_args {
     return 1;
 }
 
+
+sub podfile {
+    # Write the given POD doc into a .pod file, overwriting any existing .pod file
+    return if not -e $0;
+    my ($name_re, $path, $suffix) = fileparse($0, qr/\.[^.]*/);
+    my $pod_file = catfile( $path, $name_re.'.pod' );
+    open my $out_fh, '>', $pod_file or croak "Could not write file $pod_file because $!";
+    print $out_fh $pod_file_msg."\n\n".__PACKAGE__->man();
+    close $out_fh;
+    return $pod_file;
+}
+
+
+sub man {
+    return $man;
+}
+
+
+sub usage {
+    return $usage;
+}
+
+
+sub help {
+    return $help;
+}
+
+
+sub version {
+    return $version;
+}
+
+
 # # # # # # # # Utility subs # # # # # # # #
 
 # Recursively remove decorations on %ARGV keys
@@ -311,61 +379,25 @@ sub AUTOLOAD {
 }
 
 
-sub _get_pod {
-    # Parse the POD of the caller program and its modules.
-    my @caller = caller(1);
-
-    # Sanity check
-    if ($has_run) {
-        carp "Getopt::Euclid loaded a second time";
-        warn "Second attempt to parse command-line was ignored\n";
-        return 0;
-    }
-
-    # Handle calls from .pm files...
-    if ( $caller[1] =~ m/[.]pm \z/xms ) {
-        _get_pm_pod();
-        return 0;
-    }
-
-    # Process POD of caller program
-    _get_prog_pod();
-    $has_run = 1;
-    return 1;
-}
-
-
-sub _get_prog_pod {
-
-    # Add program name
-    push @pod_names, $0 if (-e $0); # When calling perl -e '...', $0 is '-e', i.e. not a actual file
-
-    # Acquire POD source...
-    $man = _extract_pod( reverse @pod_names );
-    undef @pod_names;
-
-}
-
-
-sub _process_pod {
+sub _parse_pod {
     # Set up parsing rules...
-    my $SPACE      = qr{ [^\S\n]*               }xms;
-    my $HEAD_START = qr{ ^=head1                }xms;
-    my $HEAD_END   = qr{ (?= $HEAD_START | \z)  }xms;
-    my $POD_CMD    = qr{            = [^\W\d]\w+ [^\n]* (?= \n\n )}xms;
-    my $POD_CUT    = qr{ (?! \n\n ) = cut $SPACE        (?= \n\n )}xms;
+    my $space_re      = qr{ [^\S\n]*               }xms;
+    my $head_start_re = qr{ ^=head1                }xms;
+    my $head_end_re   = qr{ (?= $head_start_re | \z)  }xms;
+    my $pod_cmd_re    = qr{            = [^\W\d]\w+ [^\n]* (?= \n\n )}xms;
+    my $pod_cut_re    = qr{ (?! \n\n ) = cut $space_re        (?= \n\n )}xms;
 
-    my $NAME  = qr{ $SPACE NAME    $SPACE \n }xms;
-    my $VERS  = qr{ $SPACE VERSION $SPACE \n }xms;
-    my $USAGE = qr{ $SPACE USAGE   $SPACE \n }xms;
+    my $name_re  = qr{ $space_re NAME    $space_re \n }xms;
+    my $vers_re  = qr{ $space_re VERSION $space_re \n }xms;
+    my $usage_re = qr{ $space_re USAGE   $space_re \n }xms;
 
-    my $STD = qr{ STANDARD | STD | PROGRAM | SCRIPT | CLI  | COMMAND(?:-|\s)?LINE }xms;
-    my $ARG = qr{ $SPACE (?:PARAM(?:ETER)?|ARG(?:UMENT)?)S? }xms;
+    my $std_re = qr{ STANDARD | STD | PROGRAM | SCRIPT | CLI  | COMMAND(?:-|\s)?LINE }xms;
+    my $arg_re = qr{ $space_re (?:PARAM(?:ETER)?|ARG(?:UMENT)?)S? }xms;
 
-    my $OPTIONS  = qr{ $SPACE $STD? $SPACE OPTION(?:AL|S)?        $ARG? $SPACE \n }xms;
-    my $REQUIRED = qr{ $SPACE $STD? $SPACE (?:REQUIRED|MANDATORY) $ARG? $SPACE \n }xms;
+    my $options_re  = qr{ $space_re $std_re? $space_re OPTION(?:AL|S)?        $arg_re? $space_re \n }xms;
+    my $required_re = qr{ $space_re $std_re? $space_re (?:REQUIRED|MANDATORY) $arg_re? $space_re \n }xms;
 
-    my $EUCLID_ARG = qr{ ^=item \s* ([^\n]*?) \s* \n\s*\n
+    my $euclid_arg = qr{ ^=item \s* ([^\n]*?) \s* \n\s*\n
                         (
                         .*?
                         (?:
@@ -384,55 +416,55 @@ sub _process_pod {
 
     # Put program name in man
     $SCRIPT_NAME = (-e $0) ? (splitpath $0)[-1] : 'one-liner';
-    $man =~ s{ ($HEAD_START $NAME \s*) .*? (- .*)? $HEAD_END }
+    $man =~ s{ ($head_start_re $name_re \s*) .*? (- .*)? $head_end_re }
               {$1.$SCRIPT_NAME.($2 ? " $2" : "\n\n")}xems;
 
     # Put version number in man
     ($SCRIPT_VERSION) = 
-        $man =~ m/$HEAD_START $VERS .*? (\d+(?:[._]\d+)+) .*? $HEAD_END /xms;
+        $man =~ m/$head_start_re $vers_re .*? (\d+(?:[._]\d+)+) .*? $head_end_re /xms;
     if ( !defined $SCRIPT_VERSION ) {
         $SCRIPT_VERSION = $main::VERSION;
     }
     if ( !defined $SCRIPT_VERSION ) {
         $SCRIPT_VERSION = (-e $0) ? localtime((stat $0)[9]) : 'one-liner';
     }
-    $man =~ s{ ($HEAD_START $VERS    \s*) .*? (\s*) $HEAD_END }
+    $man =~ s{ ($head_start_re $vers_re    \s*) .*? (\s*) $head_end_re }
              {$1This document refers to $SCRIPT_NAME version $SCRIPT_VERSION $2}xms;
 
     # Extra info from PODs
     my ($options, $opt_name, $required, $req_name, $licence);
-    while ($man =~ m/$HEAD_START ($REQUIRED) (.*?) $HEAD_END /gxms) {
+    while ($man =~ m/$head_start_re ($required_re) (.*?) $head_end_re /gxms) {
         # Required arguments
         my ( $more_req_name, $more_required ) = ($1, $2);
         $req_name = $more_req_name if not defined $req_name;
         $required = ( $more_required || q{} ) . ( $required || q{} );
     }
-    while ($man =~ m/$HEAD_START ($OPTIONS)  (.*?) $HEAD_END /gxms) {
+    while ($man =~ m/$head_start_re ($options_re)  (.*?) $head_end_re /gxms) {
         # Optional arguments
         my ( $more_opt_name, $more_options ) = ($1, $2);
         $opt_name = $more_opt_name if not defined $opt_name;
         $options = ( $more_options || q{} ) . ( $options || q{} );
     }
-    while ($man =~ m/$HEAD_START [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $HEAD_END /gxms) {
+    while ($man =~ m/$head_start_re [^\n]+ (?i: licen[sc]e | copyright ) .*? \n \s* (.*?) \s* $head_end_re /gxms) {
         # License information
         my ($more_licence) = ($1, $2);
         $licence = ( $more_licence || q{} ) . ( $licence || q{} );
     }
 
     # Clean up interface titles...
-    for my $name ( $opt_name, $req_name ) {
-        next if !defined $name;
-        $name =~ s{\A \s+ | \s+ \z}{}gxms;
+    for my $name_re ( $opt_name, $req_name ) {
+        next if !defined $name_re;
+        $name_re =~ s{\A \s+ | \s+ \z}{}gxms;
     }
 
     # Extract the actual interface and store each arg entry into a hash of specifications...
     my $seq  = 0;
     my $seen = {};
-    while ( ( $required || q{} ) =~ m{ $EUCLID_ARG }gxms ) {
+    while ( ( $required || q{} ) =~ m{ $euclid_arg }gxms ) {
         $seen = _register_specs( $1, $2, $seq, \%requireds, \%longnames, $seen );
         $seq++;
     }
-    while ( ( $options  || q{} ) =~ m{ $EUCLID_ARG }gxms ) {
+    while ( ( $options  || q{} ) =~ m{ $euclid_arg }gxms ) {
         $seen = _register_specs( $1, $2, $seq, \%options, \%longnames, $seen );
         $seq++;
     }
@@ -461,9 +493,9 @@ sub _process_pod {
     $arg_summary =~ s/\s+/ /gxms;
 
     # Manual message
-    $man =~ s{ ($HEAD_START $USAGE    \s*) .*? (\s*) $HEAD_END } {$1$SCRIPT_NAME $arg_summary$2}xms;
-    $man =~ s{ ($HEAD_START $REQUIRED \s*) .*? (\s*) $HEAD_END } {$1$required$2}xms;
-    $man =~ s{ ($HEAD_START $OPTIONS  \s*) .*? (\s*) $HEAD_END } {$1$options$2}xms;
+    $man =~ s{ ($head_start_re $usage_re    \s*) .*? (\s*) $head_end_re } {$1$SCRIPT_NAME $arg_summary$2}xms;
+    $man =~ s{ ($head_start_re $required_re \s*) .*? (\s*) $head_end_re } {$1$required$2}xms;
+    $man =~ s{ ($head_start_re $options_re  \s*) .*? (\s*) $head_end_re } {$1$options$2}xms;
 
     # Usage message
     $usage  = "       $SCRIPT_NAME $arg_summary\n";
@@ -503,37 +535,38 @@ sub _process_pod {
 
 
 sub _register_specs {
-    my ($name, $spec, $seq, $storage, $longnames, $seen) = @_;
-    my @variants = _get_variants($name);
-    $storage->{$name} = {
+    my ($name_re, $spec, $seq, $storage, $longnames, $seen) = @_;
+    my @variants = _get_variants($name_re);
+    $storage->{$name_re} = {
         seq      => $seq,
         src      => $spec,
-        name     => $name,
+        name     => $name_re,
         variants => \@variants,
     };
     if ($minimal_keys) {
-        my $minimal = _minimize_name($name);
-        croak "Internal error: minimalist mode caused arguments ",
-           "'$name' and '".$seen->{$minimal}."' to clash"
+        my $minimal = _minimize_name($name_re);
+        croak "Internal error: minimalist mode caused arguments ".
+           "'$name_re' and '".$seen->{$minimal}."' to clash"
            if $seen->{$minimal};
-        $seen->{$minimal} = $name;
+        $seen->{$minimal} = $name_re;
     }
-    $longnames->{ _longestname(@variants) } = $name;
+    $longnames->{ _longestname(@variants) } = $name_re;
     return $seen;
 }
 
 
 sub _process_euclid_specs {
     my ($args) = @_;
-    my %var_list;
+    my %all_var_list;
     my %excluded_by_def;
 
   ARG:
     while ( (undef, my $arg) = each %$args ) {
 
-        # Validate and record variables seen here...
-        for my $var_name (@{_validate_name( $arg->{name} )}) {
-            $var_list{$var_name} = undef;
+        # Validate and record variable names seen here...
+        my $var_list = _validate_name( $arg->{name} );
+        while (my ($var_name, undef) = each %$var_list) {
+            $all_var_list{$var_name} = undef;
         }
 
         # Process arguments with a Euclid specification further
@@ -592,7 +625,7 @@ sub _process_euclid_specs {
                     $arg->{var}{$var}{constraint} =
                       $matchtype =~ m{\A\s*/.*/\s*\z}xms
                       ? sub { 1 }
-                      : $STD_CONSTRAINT_FOR{$matchtype}
+                      : $std_constraint_for{$matchtype}
                       or _fail("Unknown .type constraint: $spec");
                 }
 
@@ -606,14 +639,21 @@ sub _process_euclid_specs {
                 $arg->{$has_field} = exists $arg->{$has_field} ?
                                       $arg->{$has_field}++ :
                                       1;
-                # Optional defaults need optional placeholders
+
                 if ($field eq 'opt_default') {
+                    # Check that placeholders with optional defaults have a flagged argument
+                    if ( $arg->{name} =~ m{^<}xms ) {
+                       _fail( "Invalid .$field constraint: $spec\nParameter ".
+                           "$arg->{name} must have a flag" );
+                    }
+                    # Check that placeholders with optional defaults is optional
                     if ( $arg->{name} !~ m{\Q[<$var>]}xms ) {
-                       _fail( "Invalid .opt_default constraint: $spec\n(Placeholder".
-                           " <$var> has to be optional, i.e. [<$var>], to have ".
-                           "an optional default in argument: $arg->{name})" );
+                       _fail( "Invalid .$field constraint: $spec\nPlaceholder".
+                           " <$var> must be optional, i.e. [<$var>], to have ".
+                           "an optional default in argument: $arg->{name}" );
                     }
                 }
+
             }
             elsif ( $field eq 'excludes.error' ) {
                 $arg->{var}{$var}{excludes_error} = $val;
@@ -649,7 +689,7 @@ sub _process_euclid_specs {
         while ( my ($var, $var_specs) = each %{$arg->{var}} ) {
             # Check for invalid placeholder name in .excludes specifications
             for my $excl_var (@{$var_specs->{excludes}}) {
-                if (not exists $var_list{$excl_var}) {
+                if (not exists $all_var_list{$excl_var}) {
                     _fail( "Invalid .excludes value for variable <$var>: ".
                         "<$excl_var> does not exist\n" );
                 }
@@ -667,6 +707,7 @@ sub _process_euclid_specs {
         }
     }
 
+    return 1;
 }
 
 
@@ -727,11 +768,11 @@ sub _get_variable_names {
 
 
 sub _minimize_name {
-    my ($name) = @_;
-    $name =~ s{[][]}{}gxms;                      # remove all square brackets
-    $name =~ s{\A \W+ ([\w-]*) .* \z}{$1}gxms;
-    $name =~ s{-}{_}gxms;
-    return $name;
+    my ($name_re) = @_;
+    $name_re =~ s{[][]}{}gxms;                      # remove all square brackets
+    $name_re =~ s{\A \W+ ([\w-]*) .* \z}{$1}gxms;
+    $name_re =~ s{-}{_}gxms;
+    return $name_re;
 }
 
 
@@ -744,7 +785,7 @@ sub _minimize_entries_of {
         $arg_ref->{$new_key} = delete $arg_ref->{$old_key};
     }
 
-    return;
+    return 1;
 }
 
 
@@ -752,7 +793,7 @@ sub _minimize_entries_of {
 sub _doesnt_match {
     my ( $matcher, $argv, $arg_specs_ref ) = @_;
 
-    our @errors; # 'our' instead of 'my' because it's needed for the re pragma
+    our @errors; # 'our' instead of 'my' because it is needed for the re pragma
     local @errors = ();
     %ARGV = ();
 
@@ -782,7 +823,7 @@ sub _doesnt_match {
         return "Unknown argument: $error";
     }
 
-    return;    # No error
+    return 0;    # No error
 }
 
 
@@ -823,6 +864,7 @@ sub _rectify_all_args {
             }
         }
     }
+    return 1;
 }
 
 
@@ -955,7 +997,7 @@ sub _verify_args {
             }
         }
     }
-
+    return 1;
 }
 
 
@@ -968,7 +1010,7 @@ sub _type_error {
         $msg =~ s{(?<!<)\b$var_name\b|\b$var_name\b(?!>)}{$var_val}gxms;
     } else {
         $msg = qq{<$var_name> must be $var_constraint but the supplied value }.
-               qq{("$var_val") isn't.};
+               qq{("$var_val") is not.};
     }
     return $msg;
 }
@@ -1010,7 +1052,7 @@ sub _convert_to_regex {
                my $matcher =
                    $type =~ m{\A\s*/.*/\s*\z}xms
                    ? eval "qr$type"
-                   : $STD_MATCHER_FOR{ $type }
+                   : $std_matcher_for{ $type }
                    or _fail("Unknown type ($type) in specification: $arg_name");
                $var_rep ?
                  "(?:[\\s\\0\\1]*$no_match($matcher)(?{push \@{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}}}, \$^N}))+"
@@ -1041,21 +1083,21 @@ sub _convert_to_regex {
                my $type_error = $arg->{var}{$var_name}{type_error} || q{};
                my $matcher = $type =~ m{\A\s*/.*/\s*\z}xms
                                 ? eval "qr$type"
-                                : $STD_MATCHER_FOR{ $type };
+                                : $std_matcher_for{ $type };
                "(?:($matcher|([^\\s\\0\\1]+)"
                . "(?{\$bad_type ||= "
                . "{arg=>q{$arg_name},type=>q{$type},type_error=>q{$type_error}, var=>q{<$var_name>},val=>\$^N};})))"
              }gexms;
         $arg->{generic_matcher} = $generic;
     }
-    return;
+    return 1;
 }
 
 
 sub _escape_specials {
     # Escape quotemeta special characters
     my $arg = shift;
-    $arg =~ s{([@#$^*()+{}?])}{\\$1}gxms; #?
+    $arg =~ s{([@#\$^*()+{}?])}{\\$1}gxms;
     return $arg;
 }
 
@@ -1083,22 +1125,25 @@ sub _validate_name {
     my ($name) = @_;
     if ($name =~ m/[<>]/) { # skip expensive Text::Balance functions if possible
         my %var_names;
+        my $pos = 0;
         for my $s (extract_multiple($name,[sub{extract_bracketed($_[0],'<>')}],undef,0)) {
+            next if not $s =~ m/[<>]/;
             $s =~ s/^<(.*)>$/$1/;
             if ( $s =~ m/[<>]/ ) {
                 _fail( 'Invalid argument specification: '.$name );
             }
-            $var_names{$s} = undef;
+            $pos++;
+            $var_names{$s} = $pos if not exists $var_names{$s};
         }
-        return [keys %var_names];
+        return \%var_names;
     } else {    
-        return [];
+        return {};
     }
 }
 
 
 sub _get_variants {
-    my @arg_desc = shift =~ m{ [^[|]+ (?: $OPTIONAL [^[|]* )* }gmxs;
+    my @arg_desc = shift =~ m{ [^[|]+ (?: $optional_re [^[|]* )* }gmxs;
 
     for (@arg_desc) {
         s{^ \s+ | \s+ $}{}gxms;
@@ -1145,9 +1190,10 @@ sub _export_var {
     my ( $prefix, $key, $value ) = @_;
     my $export_as = $prefix . $key;
     $export_as =~ s{\W}{_}gxms;    # mainly for '-'
-    my $callpkg = caller(2+($Exporter::ExportLevel || 0)); # at import()'s level
+    my $callpkg = caller( $export_lvl + ($Exporter::ExportLevel || 0) );
     no strict 'refs';
     *{"$callpkg\::$export_as"} = ( ref $value ) ? $value : \$value;
+    return 1;
 }
 
 
@@ -1155,83 +1201,54 @@ sub _export_var {
 sub _make_equivalent {
     my ( $hash_ref, %alias_hash ) = @_;
 
-    while ( my ( $name, $aliases ) = each %alias_hash ) {
+    while ( my ( $name_re, $aliases ) = each %alias_hash ) {
         for my $alias (@$aliases) {
-            $hash_ref->{$alias} = $hash_ref->{$name};
+            $hash_ref->{$alias} = $hash_ref->{$name_re};
         }
     }
 
-    return;
+    return 1;
 }
 
 
-# Report problems in specification...
+# Report problems in specification and die
 sub _fail {
     my (@msg) = @_;
     croak "Getopt::Euclid: @msg";
 }
 
 
-sub _get_pm_pod {
-    # Just add name of this module to list
+sub _get_pod_names {
+    # Parse the POD of the caller program and its modules.
+    my @caller = caller(1);
 
-    my @caller = caller(2); # at import()'s level
-
-    push @pod_names, $caller[1];
-
-    # Install this import() sub as module's import sub...
-    no strict 'refs';
-    croak '.pm file cannot define an explicit import() when using Getopt::Euclid'
-      if *{"$caller[0]::import"}{CODE};
-
-    my $lambda;    # Needed so the anon sub is generated at run-time
-    *{"$caller[0]::import"}
-      = bless sub { $lambda = 1; goto &Getopt::Euclid::import },
-      'Getopt::Euclid::Importer';
-
-}
-
-
-sub _extract_pod {
-    # Extract POD content from list of Perl scripts (.pl) and modules (.pm) and
-    # their corresponding .pod file if available.
-    my (@perl_files) = @_;
-
-    my $pod_string = '';
-    open my $pod_fh, '>', \$pod_string
-      or croak "Could not open filehandle to variable because $!";
-    for my $perl_file (@perl_files) {
-
-        # Find corresponding .pod file
-        my ($name, $path, $suffix) = fileparse($perl_file, qr/\.[^.]*/);
-        my $pod_file = catfile( $path, $name.'.pod' );
-
-        # Get POD either from .pod file (preferably) or from Perl file
-        my $got_pod = 0;
-        if ( -e $pod_file ) {
-            # Get .pod file content
-            open my $in, '<', $pod_file
-              or croak "Could not open file $pod_file because $!";
-            my $first_line = <$in>;
-            chomp $first_line;
-            if ( not ($first_line =~ m/$skip_keyword/) ) {
-                # Do not use G::E auto-generated file; it lacks important stuff
-                print $pod_fh "$first_line\n";
-                print $pod_fh $_ while <$in>;    
-                $got_pod = 1;
-            }
-            close $in;
-        }
-        if (not $got_pod) {
-            # Parse POD content of Perl file
-            podselect( {-output => $pod_fh}, $perl_file );
-        }
-        print $pod_fh "\n" if $pod_string;
-
+    # Sanity check
+    if ($has_run) {
+        carp 'Getopt::Euclid loaded a second time';
+        warn "Second attempt to parse command-line was ignored\n";
+        return 0;
     }
-    close $pod_fh;
 
-    return $pod_string;
+    # Handle calls from .pm files
+    if ( $caller[1] =~ m/[.]pm \z/xms ) {
+        my @caller = caller(1); # at import()'s level
+        push @pod_names, $caller[1];
+        # Install this import() sub as module's import sub...
+        no strict 'refs';
+        croak '.pm file cannot define an explicit import() when using Getopt::Euclid'
+          if *{"$caller[0]::import"}{CODE};
+        my $lambda;    # Needed so the anon sub is generated at run-time
+        *{"$caller[0]::import"}
+          = bless sub { $lambda = 1; goto &Getopt::Euclid::import },
+          'Getopt::Euclid::Importer';
+
+        return 0;
+    }
+
+    # Add name of caller program
+    push @pod_names, $0 if (-e $0); # When calling perl -e '...', $0 is '-e', i.e. not a actual file
+
+    return 1;
 }
 
 
@@ -1254,7 +1271,7 @@ sub _insert_default_values {
                     } elsif (ref($var->{$default_type}) eq '') {
                         $var_default = $var->{$default_type};
                     } else {
-                        carp "Getopt::Euclid found an unexpected default value type";
+                        carp 'Getopt::Euclid found an unexpected default value type';
                     }
                 } else {
                     $var_default = 'none';
@@ -1264,7 +1281,7 @@ sub _insert_default_values {
         }
         if ($item_spec =~ m/(\S+(\.(?:opt_)?default))/) {
             my ($reference, $default_type) = ($1, $2);
-            _fail( "Invalid reference to field $reference in this argument ".
+            _fail( "Invalid reference to field $reference in argument ".
                    "description:\n$item_spec" );
         }
         $pod_string .= $item_spec;
@@ -1276,13 +1293,14 @@ sub _insert_default_values {
 
 1;                                 # Magic true value required at end of module
 
+
 =head1 NAME
 
 Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.4.3
+This document describes Getopt::Euclid version 0.4.4
 
 =head1 SYNOPSIS
 
@@ -1438,7 +1456,7 @@ remove the command-line arguments from C<@ARGV> and parse them, and
 =item 5.
 
 put the results in the global C<%ARGV> variable (or into specifically named
-optional variables, if you request that -- see L<Exporting Option Variables>).
+optional variables, if you request that -- see L<Exporting option variables>).
 
 =back
 
@@ -1446,16 +1464,16 @@ As a special case, if the module is loaded within some other module
 (i.e. from within a C<.pm> file), it still locates and extracts POD
 information, but instead of parsing C<@ARGV> immediately, it caches that
 information and installs an C<import()> subroutine in the caller module.
-That new C<import()> acts just like Getopt::Euclid's own import, except
+This new C<import()> acts just like Getopt::Euclid's own import, except
 that it adds the POD from the caller module to the POD of the callee.
 
 All of which just means you can put some or all of your CLI specification
 in a module, rather than in the application's source file.
-See L<Module Interface> for more details.
+See L<Module interface> for more details.
 
 =head1 INTERFACE 
 
-=head2 Program Interface
+=head2 Program interface
 
 You write:
 
@@ -1463,7 +1481,7 @@ You write:
 
 and your command-line is parsed automagically.
 
-=head2 Module Interface
+=head2 Module interface
 
 =over
 
@@ -1482,7 +1500,7 @@ by loading your module.
 
 To accomplish this trick Getopt::Euclid installs an C<import()>
 subroutine in your module. If your module already has an C<import()>
-subroutine defined, terrible things happen. So don't do that.
+subroutine defined, terrible things happen. So do not do that.
 
 You may also short-circuit the import method within your calling program to
 have the POD from several modules included for argument parsing.
@@ -1496,13 +1514,37 @@ have the POD from several modules included for argument parsing.
 Alternatively, to parse arguments from a source different from C<@ARGV>, use the
 C<process_args()> subroutine.
 
-    use Getopt::Euclid;
-    my @args = ( '-in file.txt', '-out results.txt' );
+    use Getopt::Euclid qw(:defer);
+    my @args = ( '-in', 'file.txt', '-out', 'results.txt' );
     Getopt::Euclid->process_args(\@args);
+
+If you want to use the :minimal or :vars mode in this type of scenario, you can
+pass extra options to C<process_args()>:
+
+    use Getopt::Euclid qw(:defer);
+    my @args = ( '-in', 'file.txt', '-out', 'results.txt' );
+    Getopt::Euclid->process_args(\@args, {-minimal => 1, -vars => 'prefix_'});
+
+This is particularly when you plan on processing POD manually.
+
+=item process_pods()
+
+Similarly, to parse argument specifications from a source different than the
+current script (and its dependencies), use the C<process_pods()> subroutine.
+
+    use Getopt::Euclid ();
+    my @pods = ( 'script.pl', 'Module.pm' );
+    $Getopt::Euclid::MAN = Getopt::Euclid->process_pods(\@pods, {-strict => 1});
+    my @args = ( '-in', 'file.txt', '-out', 'results.txt' );
+    Getopt::Euclid->process_args(\@args);
+
+By default, this method will look for .pod files associated with the given .pl
+and .pm files and use these .pod files preferentially when available. Set
+-strict to 1 to only use the given files.
 
 =back
 
-=head2 POD Interface
+=head2 POD interface
 
 This is where all the action is. POD markup can be placed in a .pod file that
 has the same prefix as the corresponding Perl file. Alternatively, POD can be
@@ -1757,7 +1799,7 @@ they appear. For example, a common idiom is:
 
     =item --noprint
 
-    Don't print results
+    Do not print results
 
 These two arguments are effectively the same argument, just with opposite
 boolean values. However, as specified above, only one of C<$ARGV{'--print'}>
@@ -1768,7 +1810,7 @@ and sets both appropriately:
 
     =item --[no]print
 
-    [Don't] print results
+    [Do not] print results
 
     =for Euclid:
         false: --noprint
@@ -1861,7 +1903,7 @@ has any additional placeholders, the entire entry in C<%ARGV> becomes a hash:
         = $ARGV{'<h>'}{'h'} * $ARGV{'<h>'}{'w'}
 
 Note that, as in earlier multi-placeholder examples, the individual second-
-level placeholder keys I<don't> retain their angle-brackets.
+level placeholder keys I<do not> retain their angle-brackets.
 
 =head2 Repeated placeholders
 
@@ -1923,9 +1965,9 @@ You can also specify an operator expression after the type name:
         h.type: integer > 0
         w.type: number <= 100
 
-specifies that C<< <h> >> has to be given an integer that's greater than zero,
+specifies that C<< <h> >> has to be given an integer that is greater than zero,
 and that C<< <w> >> has to be given a number (not necessarily an integer)
-that's no more than 100.
+that is no more than 100.
 
 These type constraints have two alternative syntaxes:
 
@@ -1950,7 +1992,7 @@ the placeholder as many times as necessary:
         w.type: number,  Math::is_prime(w) || w % 2 == 0
 
 Note that the expressions are evaluated in the C<package main> namespace,
-so it's important to qualify any subroutines that are not in that namespace.
+so it is important to qualify any subroutines that are not in that namespace.
 Furthermore, any subroutines used must be defined (or loaded from a module)
 I<before> the C<use Getopt::Euclid> statement.
 
@@ -2039,7 +2081,7 @@ informative to users.
 
 =head2 Placeholder type errors
 
-If a command-line argument's placeholder value doesn't satisify the specified
+If a command-line argument's placeholder value does not satisify the specified
 type, an error message is automatically generated. However, you can provide
 your own message instead, using the C<.type.error> specifier:
 
@@ -2048,7 +2090,7 @@ your own message instead, using the C<.type.error> specifier:
         h.type.error:  <h> must be between 0 and 100 (not h)
 
         w.type:        number,  Math::is_prime(w) || w % 2 == 0
-        w.type.error:  Can't use w for <w> (must be an even prime number)
+        w.type.error:  Cannot use w for <w> (must be an even prime number)
 
 Whenever an explicit error message is provided, any occurrence within
 the message of the placeholder's unbracketed name is replaced by the
@@ -2056,8 +2098,8 @@ placeholder's value (just as in the type test itself).
 
 =head2 Placeholder defaults
 
-You can also specify a default value for any placeholders that aren't
-given values on the command-line (either because their argument isn't
+You can also specify a default value for any placeholders that are not
+given values on the command-line (either because their argument is not
 provided at all, or because the placeholder is optional within the argument).
 For example:
 
@@ -2078,7 +2120,7 @@ omitted entirely, both C<$ARGV{'-size'}{'h'}> and C<$ARGV{'-size'}{'w'}> are set
 to their respective default values
 
 However, Getopt::Euclid also supports a second type of default, optional defaults,
-that apply only to optional placeholders.
+that apply only to flagged, optional placeholders.
 
 For example:
 
@@ -2202,7 +2244,7 @@ cuddled together. Getopt::Euclid would not allow:
 
     -vxz
 
-That's because cuddling is recognized by progressively removing the second
+This is because cuddling is recognized by progressively removing the second
 character of the cuddle. In other words:
 
     -vxz
@@ -2229,7 +2271,7 @@ as a cuddled version of:
 
     -v -x -e'print time'
 
-=head2 Exporting Option Variables
+=head2 Exporting option variables
 
 By default, the module only stores arguments into the global %ARGV hash.
 You can request that options are exported as variables into the calling package
@@ -2266,7 +2308,7 @@ type of the corresponding value in C<%ARGV>. Command-line flags and arguments
 that take single values will produce scalars, arguments that take multiple
 values will produce hashes, and repeatable arguments will produce arrays.
 
-If you don't like the default prefix of "ARGV_", you can specify your own,
+If you do not like the default prefix of "ARGV_", you can specify your own,
 such as "opt_", like this:
 
     use Getopt::Euclid qw( :vars<opt_> );
@@ -2374,7 +2416,7 @@ Note that, in rare cases, using this mode may cause you to lose
 data (for example, if the interface specifies both a C<--step> and
 a C<< <step> >> option). The module throws an exception if this happens.
 
-=head2 Defering argument parsing
+=head2 Deferring argument parsing
 
 In some instances, you may want to avoid the parsing of arguments to take place
 as soon as your program is executed and Getopt::Euclid is loaded. For example,
@@ -2401,8 +2443,8 @@ specification of the command-line interface:
 
 Something is horribly wrong. Getopt::Euclid was unable to read your
 program to extract the POD from it. Check your program's permissions,
-though it's a mystery how I<perl> was able to run the program in the
-first place, if it's not readable.
+though it is a mystery how I<perl> was able to run the program in the
+first place, if it is not readable.
 
 =item .pm file cannot define an explicit import() when using Getopt::Euclid
 
@@ -2414,7 +2456,7 @@ C<import()> as well defeats the purpose.
 =item Unknown specification: %s
 
 You specified something in a C<=for Euclid> section that
-Getopt::Euclid didn't understand. This is often caused by typos, or by
+Getopt::Euclid did not understand. This is often caused by typos, or by
 reversing a I<placeholder>.I<type> or I<placeholder>.I<default>
 specification (that is, writing I<type>.I<placeholder> or
 I<default>.I<placeholder> instead).
@@ -2424,12 +2466,12 @@ I<default>.I<placeholder> instead).
 =item Unknown .type constraint: %s
 
 Both these errors mean that you specified a type constraint that
-Getopt::Euclid didn't recognize. This may have been a typo:
+Getopt::Euclid did not recognize. This may have been a typo:
 
     =for Euclid
         count.type: inetger
 
-or else the module simply doesn't know about the type you specified:
+or else the module simply does not know about the type you specified:
 
     =for Euclid
         count.type: complex
@@ -2439,7 +2481,7 @@ I<does> recognize.
 
 =item Invalid .type constraint: %s
 
-You specified a type constraint that isn't valid Perl. For example:
+You specified a type constraint that is not valid Perl. For example:
 
     =for Euclid
         max.type: integer not equals 0
@@ -2451,7 +2493,7 @@ instead of:
 
 =item Invalid .default value: %s
 
-You specified a default value that isn't valid Perl. For example:
+You specified a default value that is not valid Perl. For example:
 
     =for Euclid
         curse.default: *$@!&
@@ -2465,7 +2507,7 @@ instead of:
 
 Same as previous diagnostic, but for optional defaults.
 
-=item Invalid reference to field (%s.default) in argument description: %s
+=item Invalid reference to field %s.default in argument description: %s
 
 You referred to a default value in the description of an argument, but there
 is no such default. It may be a typo, or you may be referring to the default
@@ -2487,15 +2529,14 @@ instead of:
     =for Euclid
         age.default: 21
 
-=item Invalid reference to field %s.opt_defaul) in this argument description: %s
+=item Invalid reference to field %s.opt_default in argument description: %s
 
 Same as previous diagnostic, but for optional defaults.
 
-=item Invalid .opt_default constraint
+=item Invalid .opt_default constraint: Placeholder <%s> must be optional
 
 You specified an optional default but the placeholder that it affects is not an
-optional optional placeholder, i.e. an optional default has no effect on it. For
-example:
+optional placeholder. For example:
 
     =item  -l[[en][gth]] <l>
 
@@ -2509,6 +2550,24 @@ instead of:
     =for Euclid:
         l.opt_default: 123
 
+
+=item Invalid .opt_default constraint: Parameter %s must have a flag
+
+You specified an optional default but the parameter that it affects is
+unflagged. For example:
+
+    =item  <length>
+
+    =for Euclid:
+        l.opt_default: 123
+
+instead of:
+
+    =item  -l [<length>]
+
+    =for Euclid:
+        l.opt_default: 123
+
 =item Invalid .excludes value for variable %s: <%s> does not exist
 
 You specified to exclude a variable that was not seen in the POD. Make sure
@@ -2517,7 +2576,7 @@ that this is not a typo.
 =item Invalid constraint: %s (No <%s> placeholder in argument: %s)
 
 You attempted to define a C<.type> constraint for a placeholder that
-didn't exist. Typically this is the result of the misspelling of a
+did not exist. Typically this is the result of the misspelling of a
 placeholder name:
 
     =item -foo <bar>
@@ -2537,7 +2596,7 @@ or a C<=for Euclid:> that has drifted away from its argument:
 =item Getopt::Euclid loaded a second time
 
 You tried to load the module twice in the same program.
-Getopt::Euclid doesn't work that way. Load it only once.
+Getopt::Euclid does not work that way. Load it only once.
 
 =item Unknown mode ('%s')
 
@@ -2567,9 +2626,9 @@ The following diagnostics are caused by problems in parsing the command-line
 =item Missing required argument(s): %s
 
 At least one argument specified in the C<REQUIRED ARGUMENTS> POD section
-wasn't present on the command-line.
+was not present on the command-line.
 
-=item Invalid %s argument. %s must be %s but the supplied value (%s) isn't.
+=item Invalid %s argument. %s must be %s but the supplied value (%s) is not.
 
 Getopt::Euclid recognized the argument you were trying to specify on the
 command-line, but the value you gave to one of that argument's placeholders
@@ -2577,7 +2636,7 @@ was of the wrong type.
 
 =item Unknown argument: %s
 
-Getopt::Euclid didn't recognize an argument you were trying to specify on the
+Getopt::Euclid did not recognize an argument you were trying to specify on the
 command-line. This is often caused by command-line typos or an incomplete
 interface specification.
 

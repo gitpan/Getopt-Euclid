@@ -1,5 +1,12 @@
 Revision history for Getopt-Euclid
 
+0.4.4  2013-08-21
+  - Fixed bug with Bleadperl v5.19.2-257-gc30fc27 (bug #87804, reported by
+    Andreas Koenig, patch by Dave Mitchell)
+  - New process_pod() method to specify arbitrary list of POD files to parse
+    (bug #87592, requested by zdm)
+  - More optional default checks
+
 0.4.3  2013-07-22
   - Added a check for .default and .opt_default references in argument description
   - Speed optimizations

@@ -13,9 +13,9 @@ BEGIN {
     $G       = 2;
 
     @ARGV = (
-        "-i   $INFILE",
-        "-lgth $L",
-        "-girth $G",
+        "-i", $INFILE,
+        "-lgth", $L,
+        "-girth", $G,
     );
 
     chmod 0644, $0;

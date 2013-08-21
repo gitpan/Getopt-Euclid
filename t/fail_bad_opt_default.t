@@ -15,12 +15,12 @@ BEGIN {
     $TIMEOUT = 7;
 
     @ARGV = (
-        "-i   $INFILE",
+        "-i", $INFILE,
         "-out=", $OUTFILE,
         "-lgth",
-        "size ${H}x${W}",
+        "size", "${H}x${W}",
         '-v',
-        "--timeout $TIMEOUT",
+        "--timeout", $TIMEOUT,
         '--with', 's p a c e s',
         7,
     );
@@ -33,7 +33,9 @@ if (eval { require Getopt::Euclid and Getopt::Euclid->import(); 1 }) {
 }
 else {
     like $@, qr/Getopt::Euclid: Invalid .opt_default constraint/
-         => 'Failed as expected'; 
+         => 'Failed as expected';
+    like $@, qr/Placeholder .* must be optional/
+         => 'With expected message';
 }
 
 

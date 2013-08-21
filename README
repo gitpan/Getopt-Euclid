@@ -2,7 +2,7 @@ NAME
     Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 VERSION
-    This document describes Getopt::Euclid version 0.4.3
+    This document describes Getopt::Euclid version 0.4.4
 
 SYNOPSIS
         use Getopt::Euclid;
@@ -146,28 +146,28 @@ DESCRIPTION
 
     5.  put the results in the global %ARGV variable (or into specifically
         named optional variables, if you request that -- see "Exporting
-        Option Variables").
+        option variables").
 
     As a special case, if the module is loaded within some other module
     (i.e. from within a ".pm" file), it still locates and extracts POD
     information, but instead of parsing @ARGV immediately, it caches that
     information and installs an "import()" subroutine in the caller module.
-    That new "import()" acts just like Getopt::Euclid's own import, except
+    This new "import()" acts just like Getopt::Euclid's own import, except
     that it adds the POD from the caller module to the POD of the callee.
 
     All of which just means you can put some or all of your CLI
     specification in a module, rather than in the application's source file.
-    See "Module Interface" for more details.
+    See "Module interface" for more details.
 
 INTERFACE
-  Program Interface
+  Program interface
     You write:
 
         use Getopt::Euclid;
 
     and your command-line is parsed automagically.
 
-  Module Interface
+  Module interface
     import()
         You write:
 
@@ -182,7 +182,7 @@ INTERFACE
 
         To accomplish this trick Getopt::Euclid installs an "import()"
         subroutine in your module. If your module already has an "import()"
-        subroutine defined, terrible things happen. So don't do that.
+        subroutine defined, terrible things happen. So do not do that.
 
         You may also short-circuit the import method within your calling
         program to have the POD from several modules included for argument
@@ -196,11 +196,35 @@ INTERFACE
         Alternatively, to parse arguments from a source different from
         @ARGV, use the "process_args()" subroutine.
 
-            use Getopt::Euclid;
-            my @args = ( '-in file.txt', '-out results.txt' );
+            use Getopt::Euclid qw(:defer);
+            my @args = ( '-in', 'file.txt', '-out', 'results.txt' );
             Getopt::Euclid->process_args(\@args);
 
-  POD Interface
+        If you want to use the :minimal or :vars mode in this type of
+        scenario, you can pass extra options to "process_args()":
+
+            use Getopt::Euclid qw(:defer);
+            my @args = ( '-in', 'file.txt', '-out', 'results.txt' );
+            Getopt::Euclid->process_args(\@args, {-minimal => 1, -vars => 'prefix_'});
+
+        This is particularly when you plan on processing POD manually.
+
+    process_pods()
+        Similarly, to parse argument specifications from a source different
+        than the current script (and its dependencies), use the
+        "process_pods()" subroutine.
+
+            use Getopt::Euclid ();
+            my @pods = ( 'script.pl', 'Module.pm' );
+            $Getopt::Euclid::MAN = Getopt::Euclid->process_pods(\@pods, {-strict => 1});
+            my @args = ( '-in', 'file.txt', '-out', 'results.txt' );
+            Getopt::Euclid->process_args(\@args);
+
+        By default, this method will look for .pod files associated with the
+        given .pl and .pm files and use these .pod files preferentially when
+        available. Set -strict to 1 to only use the given files.
+
+  POD interface
     This is where all the action is. POD markup can be placed in a .pod file
     that has the same prefix as the corresponding Perl file. Alternatively,
     POD can be inserted anywhere in the Perl code, but is typically added
@@ -435,7 +459,7 @@ INTERFACE
 
         =item --noprint
 
-        Don't print results
+        Do not print results
 
     These two arguments are effectively the same argument, just with
     opposite boolean values. However, as specified above, only one of
@@ -446,7 +470,7 @@ INTERFACE
 
         =item --[no]print
 
-        [Don't] print results
+        [Do not] print results
 
         =for Euclid:
             false: --noprint
@@ -539,7 +563,7 @@ INTERFACE
             = $ARGV{'<h>'}{'h'} * $ARGV{'<h>'}{'w'}
 
     Note that, as in earlier multi-placeholder examples, the individual
-    second- level placeholder keys *don't* retain their angle-brackets.
+    second- level placeholder keys *do not* retain their angle-brackets.
 
   Repeated placeholders
     Any placeholder that is immediately followed by "...", like so:
@@ -599,9 +623,9 @@ INTERFACE
             h.type: integer > 0
             w.type: number <= 100
 
-    specifies that "<h>" has to be given an integer that's greater than
+    specifies that "<h>" has to be given an integer that is greater than
     zero, and that "<w>" has to be given a number (not necessarily an
-    integer) that's no more than 100.
+    integer) that is no more than 100.
 
     These type constraints have two alternative syntaxes:
 
@@ -626,7 +650,7 @@ INTERFACE
             w.type: number,  Math::is_prime(w) || w % 2 == 0
 
     Note that the expressions are evaluated in the "package main" namespace,
-    so it's important to qualify any subroutines that are not in that
+    so it is important to qualify any subroutines that are not in that
     namespace. Furthermore, any subroutines used must be defined (or loaded
     from a module) *before* the "use Getopt::Euclid" statement.
 
@@ -712,7 +736,7 @@ INTERFACE
             postcode.type.error: <postcode> must be a valid ZIP code
 
   Placeholder type errors
-    If a command-line argument's placeholder value doesn't satisify the
+    If a command-line argument's placeholder value does not satisify the
     specified type, an error message is automatically generated. However,
     you can provide your own message instead, using the ".type.error"
     specifier:
@@ -722,15 +746,15 @@ INTERFACE
             h.type.error:  <h> must be between 0 and 100 (not h)
 
             w.type:        number,  Math::is_prime(w) || w % 2 == 0
-            w.type.error:  Can't use w for <w> (must be an even prime number)
+            w.type.error:  Cannot use w for <w> (must be an even prime number)
 
     Whenever an explicit error message is provided, any occurrence within
     the message of the placeholder's unbracketed name is replaced by the
     placeholder's value (just as in the type test itself).
 
   Placeholder defaults
-    You can also specify a default value for any placeholders that aren't
-    given values on the command-line (either because their argument isn't
+    You can also specify a default value for any placeholders that are not
+    given values on the command-line (either because their argument is not
     provided at all, or because the placeholder is optional within the
     argument). For example:
 
@@ -751,7 +775,7 @@ INTERFACE
     are set to their respective default values
 
     However, Getopt::Euclid also supports a second type of default, optional
-    defaults, that apply only to optional placeholders.
+    defaults, that apply only to flagged, optional placeholders.
 
     For example:
 
@@ -873,7 +897,7 @@ INTERFACE
 
         -vxz
 
-    That's because cuddling is recognized by progressively removing the
+    This is because cuddling is recognized by progressively removing the
     second character of the cuddle. In other words:
 
         -vxz
@@ -900,7 +924,7 @@ INTERFACE
 
         -v -x -e'print time'
 
-  Exporting Option Variables
+  Exporting option variables
     By default, the module only stores arguments into the global %ARGV hash.
     You can request that options are exported as variables into the calling
     package using the special ':vars' specifier:
@@ -938,7 +962,7 @@ INTERFACE
     take multiple values will produce hashes, and repeatable arguments will
     produce arrays.
 
-    If you don't like the default prefix of "ARGV_", you can specify your
+    If you do not like the default prefix of "ARGV_", you can specify your
     own, such as "opt_", like this:
 
         use Getopt::Euclid qw( :vars<opt_> );
@@ -1040,7 +1064,7 @@ INTERFACE
     (for example, if the interface specifies both a "--step" and a "<step>"
     option). The module throws an exception if this happens.
 
-  Defering argument parsing
+  Deferring argument parsing
     In some instances, you may want to avoid the parsing of arguments to
     take place as soon as your program is executed and Getopt::Euclid is
     loaded. For example, you may need to examine @ARGV before it is
@@ -1061,8 +1085,8 @@ DIAGNOSTICS
     Getopt::Euclid was unable to access POD
         Something is horribly wrong. Getopt::Euclid was unable to read your
         program to extract the POD from it. Check your program's
-        permissions, though it's a mystery how *perl* was able to run the
-        program in the first place, if it's not readable.
+        permissions, though it is a mystery how *perl* was able to run the
+        program in the first place, if it is not readable.
 
     .pm file cannot define an explicit import() when using Getopt::Euclid
         You tried to define an "import()" subroutine in a module that was
@@ -1072,7 +1096,7 @@ DIAGNOSTICS
 
     Unknown specification: %s
         You specified something in a "=for Euclid" section that
-        Getopt::Euclid didn't understand. This is often caused by typos, or
+        Getopt::Euclid did not understand. This is often caused by typos, or
         by reversing a *placeholder*.*type* or *placeholder*.*default*
         specification (that is, writing *type*.*placeholder* or
         *default*.*placeholder* instead).
@@ -1080,12 +1104,13 @@ DIAGNOSTICS
     Unknown type (%s) in specification: %s
     Unknown .type constraint: %s
         Both these errors mean that you specified a type constraint that
-        Getopt::Euclid didn't recognize. This may have been a typo:
+        Getopt::Euclid did not recognize. This may have been a typo:
 
             =for Euclid
                 count.type: inetger
 
-        or else the module simply doesn't know about the type you specified:
+        or else the module simply does not know about the type you
+        specified:
 
             =for Euclid
                 count.type: complex
@@ -1094,7 +1119,7 @@ DIAGNOSTICS
         Getopt::Euclid *does* recognize.
 
     Invalid .type constraint: %s
-        You specified a type constraint that isn't valid Perl. For example:
+        You specified a type constraint that is not valid Perl. For example:
 
             =for Euclid
                 max.type: integer not equals 0
@@ -1105,7 +1130,7 @@ DIAGNOSTICS
                 max.type: integer != 0
 
     Invalid .default value: %s
-        You specified a default value that isn't valid Perl. For example:
+        You specified a default value that is not valid Perl. For example:
 
             =for Euclid
                 curse.default: *$@!&
@@ -1118,7 +1143,7 @@ DIAGNOSTICS
     Invalid .opt_default value: %s
         Same as previous diagnostic, but for optional defaults.
 
-    Invalid reference to field (%s.default) in argument description: %s
+    Invalid reference to field %s.default in argument description: %s
         You referred to a default value in the description of an argument,
         but there is no such default. It may be a typo, or you may be
         referring to the default value for a different argument, e.g.:
@@ -1139,14 +1164,12 @@ DIAGNOSTICS
             =for Euclid
                 age.default: 21
 
-    Invalid reference to field %s.opt_defaul) in this argument description:
-    %s
+    Invalid reference to field %s.opt_default in argument description: %s
         Same as previous diagnostic, but for optional defaults.
 
-    Invalid .opt_default constraint
+    Invalid .opt_default constraint: Placeholder <%s> must be optional
         You specified an optional default but the placeholder that it
-        affects is not an optional optional placeholder, i.e. an optional
-        default has no effect on it. For example:
+        affects is not an optional placeholder. For example:
 
             =item  -l[[en][gth]] <l>
 
@@ -1160,13 +1183,29 @@ DIAGNOSTICS
             =for Euclid:
                 l.opt_default: 123
 
+    Invalid .opt_default constraint: Parameter %s must have a flag
+        You specified an optional default but the parameter that it affects
+        is unflagged. For example:
+
+            =item  <length>
+
+            =for Euclid:
+                l.opt_default: 123
+
+        instead of:
+
+            =item  -l [<length>]
+
+            =for Euclid:
+                l.opt_default: 123
+
     Invalid .excludes value for variable %s: <%s> does not exist
         You specified to exclude a variable that was not seen in the POD.
         Make sure that this is not a typo.
 
     Invalid constraint: %s (No <%s> placeholder in argument: %s)
         You attempted to define a ".type" constraint for a placeholder that
-        didn't exist. Typically this is the result of the misspelling of a
+        did not exist. Typically this is the result of the misspelling of a
         placeholder name:
 
             =item -foo <bar>
@@ -1185,7 +1224,7 @@ DIAGNOSTICS
 
     Getopt::Euclid loaded a second time
         You tried to load the module twice in the same program.
-        Getopt::Euclid doesn't work that way. Load it only once.
+        Getopt::Euclid does not work that way. Load it only once.
 
     Unknown mode ('%s')
         The only argument that a "use Getopt::Euclid" command accepts is
@@ -1208,15 +1247,15 @@ DIAGNOSTICS
 
     Missing required argument(s): %s
         At least one argument specified in the "REQUIRED ARGUMENTS" POD
-        section wasn't present on the command-line.
+        section was not present on the command-line.
 
-    Invalid %s argument. %s must be %s but the supplied value (%s) isn't.
+    Invalid %s argument. %s must be %s but the supplied value (%s) is not.
         Getopt::Euclid recognized the argument you were trying to specify on
         the command-line, but the value you gave to one of that argument's
         placeholders was of the wrong type.
 
     Unknown argument: %s
-        Getopt::Euclid didn't recognize an argument you were trying to
+        Getopt::Euclid did not recognize an argument you were trying to
         specify on the command-line. This is often caused by command-line
         typos or an incomplete interface specification.
 

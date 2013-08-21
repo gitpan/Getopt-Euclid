@@ -16,9 +16,9 @@ BEGIN {
     @ARGV = (
         "-out=", $OUTFILE,
         "size",
-        "-i   $INFILE",
-        "-lgth $LEN",
-        "--timeout $TIMEOUT",
+        "-i", $INFILE,
+        "-lgth", $LEN,
+        "--timeout", $TIMEOUT,
     );
 }
 

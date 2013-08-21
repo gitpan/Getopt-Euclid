@@ -8,30 +8,38 @@ BEGIN {
 }
 
 BEGIN {
+    $INFILE  = $0;
     $OUTFILE = $0;
-    $INFILE  = 'nexistpas';
     $LEN     = 42;
     $H       = 2;
     $W       = -10;
     $TIMEOUT = 7;
 
     @ARGV = (
+        '-i', $INFILE,
+        "-out=$OUTFILE",
+        '-lgth', $LEN,
+        'size', "${H}x${W}",
         '-v',
-        "-out=", $OUTFILE,
-        "size", "${H}x${W}",
-        "-i", $INFILE,
-        "-lgth", $LEN,
-        "--timeout", $TIMEOUT,
+        '--timeout', $TIMEOUT,
+        '--with', 's p a c e s',
+        7,
     );
-}
 
+    chmod 0644, $0;
+}
 
 if (eval { require Getopt::Euclid and Getopt::Euclid->import(); 1 }) {
     ok 0 => 'Unexpectedly succeeded';
 }
 else {
-    like $@, qr/Invalid constraint: min.type: int\n\(No <min> placeholder in argument: --foo <bar>/ => 'Failed as expected'; 
+    like $@, qr/Getopt::Euclid: Invalid .opt_default constraint/
+         => 'Failed as expected';
+    like $@, qr/Parameter .* must have a flag/
+         => 'With expected message';
 }
+
+
 
 __END__
 
@@ -59,13 +67,13 @@ Specify input file
     file.type:    readable
     file.default: '-'
 
-=item  -o[ut][file]= <file>    
+=item  -o[ut][file]= <out_file>    
 
 Specify output file
 
 =for Euclid:
-    file.type:    writable
-    file.default: '-'
+    out_file.type:    writable
+    out_file.default: '-'
 
 =back
 
@@ -85,17 +93,35 @@ Display length [default: 24 ]
     l.type:    int > 0
     l.default: 24
 
+=item  -girth <g>
+
+Display girth [default: 42 ]
+
+=for Euclid:
+    g.default: 42
+
 =item -v[erbose]
 
 Print all warnings
 
 =item --timeout [<min>] [<max>]
 
-=item --foo <bar>
-
 =for Euclid:
     min.type: int
     max.type: int
+    max.default: -1
+
+=item -w <space> | --with <space>
+
+Test something spaced
+
+=item <step>
+
+Step size
+
+=for Euclid:
+    step.type: int
+    step.opt_default: 123
 
 =item --version
 
