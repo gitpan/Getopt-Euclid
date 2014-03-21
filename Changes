@@ -1,5 +1,9 @@
 Revision history for Getopt-Euclid
 
+0.4.5  2014-03-21
+  - Fixed bug when parsing arguments with missing variable (reported by Torbjørn
+    Lindahl)
+
 0.4.4  2013-08-21
   - Fixed bug with Bleadperl v5.19.2-257-gc30fc27 (bug #87804, reported by
     Andreas Koenig, patch by Dave Mitchell)

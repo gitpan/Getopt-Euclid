@@ -1,6 +1,6 @@
 package Getopt::Euclid;
 
-use version; our $VERSION = version->declare('0.4.4');
+use version; our $VERSION = version->declare('0.4.5');
 
 use warnings;
 use strict;
@@ -121,6 +121,11 @@ sub import {
     $has_run = 1;
 
     # Parse POD + parse and export arguments
+
+    ######
+    #use Data::Dumper; print "ARGV: ".Dumper(\@ARGV);
+    ######
+
     __PACKAGE__->process_args( \@ARGV ) unless $defer;
 
     return 1;
@@ -204,20 +209,16 @@ sub process_args {
     if ( first { $_ eq '--man' } @$args ) {
         _print_pod( __PACKAGE__->man(), 'paged' );
         exit;
-    }
-    elsif ( first { $_ eq '--usage' } @$args ) {
+    } elsif ( first { $_ eq '--usage' } @$args ) {
         print __PACKAGE__->usage();
         exit;
-    }
-    elsif ( first { $_ eq '--help' } @$args ) {
+    } elsif ( first { $_ eq '--help' } @$args ) {
         _print_pod( __PACKAGE__->help(), 'paged' );
         exit;
-    }
-    elsif ( first { $_ eq '--version' } @$args ) {
+    } elsif ( first { $_ eq '--version' } @$args ) {
         print __PACKAGE__->version();
         exit;
-    }
-    elsif ( first { $_ eq '--podfile' } @$args ) {
+    } elsif ( first { $_ eq '--podfile' } @$args ) {
         # Option meant for authors
         my $podfile = podfile( );
         print "Wrote POD manual in file $podfile\n";
@@ -291,8 +292,7 @@ sub process_args {
 
                 if ($repeatable) {
                     push @{ $ARGV{$arg_flag} }, $variant_val;
-                }
-                else {
+                } else {
                     $ARGV{$arg_flag} = $variant_val;
                 }
                 $vars_opt_vals{$arg_flag} = $ARGV{$arg_flag} if $vars_prefix;
@@ -525,9 +525,7 @@ sub _parse_pod {
     $matcher = join '|', map { $_->{matcher} }
       sort( { $b->{name} cmp $a->{name} } grep { $_->{name} =~ /^[^<]/ } @arg_list ),
       sort( { $a->{seq}  <=> $b->{seq}  } grep { $_->{name} =~ /^[<]/  } @arg_list );
-
     $matcher .= '|(?> (.+)) (?{ push @errors, $^N }) (?!)';
-
     $matcher = '(?:' . $matcher . ')';
 
     return 1;
@@ -601,8 +599,7 @@ sub _process_euclid_specs {
             # Decode...
             if ( $field eq 'type.error' ) {
                 $arg->{var}{$var}{type_error} = $val;
-            }
-            elsif ( $field eq 'type' ) {
+            } elsif ( $field eq 'type' ) {
                 $val = _qualify_variables_fully( $val );
                 my ( $matchtype, $comma, $constraint ) =
                   $val =~ m{(/(?:\.|.)+/ | [^,\s]+)\s*(?:(,))?\s*(.*)}xms;
@@ -613,14 +610,12 @@ sub _process_euclid_specs {
                     $constraint =~ s/\b\Q$var\E\b/\$_[0]/g;
                     $arg->{var}{$var}{constraint} = eval "sub{ $constraint }"
                       or _fail("Invalid .type constraint: $spec\n($@)");
-                }
-                elsif ( length $constraint ) {
+                } elsif ( length $constraint ) {
                     $arg->{var}{$var}{constraint_desc} = $constraint;
                     $arg->{var}{$var}{constraint} = 
                       eval "sub{ \$_[0] $constraint }"
                       or _fail("Invalid .type constraint: $spec\n($@)");
-                }
-                else {
+                } else {
                     $arg->{var}{$var}{constraint_desc} = $matchtype;
                     $arg->{var}{$var}{constraint} =
                       $matchtype =~ m{\A\s*/.*/\s*\z}xms
@@ -629,8 +624,7 @@ sub _process_euclid_specs {
                       or _fail("Unknown .type constraint: $spec");
                 }
 
-            }
-            elsif ( ($field eq 'default') || ($field eq 'opt_default') ) {
+            } elsif ( ($field eq 'default') || ($field eq 'opt_default') ) {
                 $val = _qualify_variables_fully( $val );
                 eval "\$val = $val; 1"
                   or _fail("Invalid .$field value: $spec\n($@)");
@@ -654,11 +648,9 @@ sub _process_euclid_specs {
                     }
                 }
 
-            }
-            elsif ( $field eq 'excludes.error' ) {
+            } elsif ( $field eq 'excludes.error' ) {
                 $arg->{var}{$var}{excludes_error} = $val;
-            }
-            elsif ( $field eq 'excludes' ) {
+            } elsif ( $field eq 'excludes' ) {
                 $arg->{var}{$var}{excludes} = [ split '\s*,\s*', $val ];
                 for my $excl_var (@{$arg->{var}{$var}{excludes}}) {
                     if ($var eq $excl_var) {
@@ -666,8 +658,7 @@ sub _process_euclid_specs {
                             "<$excl_var> cannot exclude itself." );
                     }
                 }
-            }
-            else {
+            } else {
                 _fail("Unknown specification: $spec");
             }
         }
@@ -848,17 +839,14 @@ sub _rectify_all_args {
                 for my $var ( values %{$arg} ) {
                     if ( ref $var eq 'ARRAY' ) {
                         $var = [ map { _rectify_arg($_) } @{$var} ];
-                    }
-                    else {
+                    } else {
                         $var = _rectify_arg($var);
                     }
                 }
-            }
-            else {
+            } else {
                 if ( ref $arg eq 'ARRAY' ) {
                     $arg = [ map { _rectify_arg($_) } @{$arg} ];
-                }
-                else {
+                } else {
                     $arg = _rectify_arg($arg);
                 }
             }
@@ -928,8 +916,8 @@ sub _verify_args {
                 # Check constraints on vars...
                 if ( exists $ARGV{$arg_name} ) {
 
-                    # Named vars...
                     if ( ref $entry eq 'HASH' && defined $entry->{$var} ) {
+                        # Named vars...
                         for my $val (
                             ref $entry->{$var} eq 'ARRAY'
                             ? @{ $entry->{$var} }
@@ -944,10 +932,8 @@ sub _verify_args {
                             }
                         }
                         next VAR;
-                    }
-
-                    # Unnamed vars...
-                    elsif ( ref $entry ne 'HASH' && defined $entry ) {
+                    } elsif ( ref $entry ne 'HASH' && defined $entry ) {
+                        # Unnamed vars...
                         for my $val (
                             ref $entry eq 'ARRAY'
                             ? @{$entry}
@@ -1026,6 +1012,7 @@ sub _convert_to_regex {
     while ( my ($arg_name, $arg_specs) = each %{$args_ref} ) {
         push @arg_variants, @{$arg_specs->{variants}};
     }
+
     my $no_match = join('|',@arg_variants);
     $no_match = _escape_specials($no_match);
     $no_match = '(?!(?:'.$no_match.')'.$no_esc_ws.')';
@@ -1056,7 +1043,8 @@ sub _convert_to_regex {
                    or _fail("Unknown type ($type) in specification: $arg_name");
                $var_rep ?
                  "(?:[\\s\\0\\1]*$no_match($matcher)(?{push \@{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}}}, \$^N}))+"
-                 : "(?:($matcher)(?{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}} = \$^N}))";
+                 :
+                 "(?:$no_match($matcher)(?{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{$var_name}} = \$^N}))";
              }gexms
              or do {
                  $regex .= "(?{(\$ARGV{q{$arg_name}}||=[{}])->[-1]{q{}} = 1})";
@@ -1064,8 +1052,7 @@ sub _convert_to_regex {
 
         if ( $arg->{is_repeatable} ) {
             $arg->{matcher} = "$regex (?:(?<!\\w)|(?!\\w)) (?{push \@{\$ARGV{q{$arg_name}}}, {} })";
-        }
-        else {
+        } else {
             $arg->{matcher} = "(??{exists\$ARGV{q{$arg_name}}?'(?!)':''}) "
               . (
                 $arg->{false_vals}
@@ -1300,7 +1287,7 @@ Getopt::Euclid - Executable Uniform Command-Line Interface Descriptions
 
 =head1 VERSION
 
-This document describes Getopt::Euclid version 0.4.4
+This document describes Getopt::Euclid version 0.4.5
 
 =head1 SYNOPSIS
 
